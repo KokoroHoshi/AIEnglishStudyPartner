@@ -2,9 +2,9 @@ docker_test
 local_test/llm
 models
 _MeloTTS
-vector_db/indices/*
-vector_db/texts/*
-tmp/*
+local_test/fastapi/vector_db/indices/*
+local_test/fastapi/vector_db/texts/*
+local_test/fastapi/tmp/*
 venv
 
 .env
