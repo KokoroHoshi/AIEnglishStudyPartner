@@ -1,2 +1,10 @@
 docker_test
 local_test/llm
+models
+_MeloTTS
+vector_db/indices/*
+vector_db/texts/*
+tmp/*
+venv
+
+.env
