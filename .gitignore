@@ -5,6 +5,7 @@ _MeloTTS
 local_test/fastapi/vector_db/indices/*
 local_test/fastapi/vector_db/texts/*
 local_test/fastapi/tmp/*
+local_test/fastapi/static/*
 venv
 
 .env

@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from linebot.v3 import (
     WebhookHandler
@@ -19,7 +20,8 @@ from linebot.v3.messaging import (
     TextMessage,
     ButtonsTemplate,
     MessageAction,
-    TemplateMessage
+    TemplateMessage,
+    AudioMessage
 )
 
 
@@ -42,6 +44,7 @@ LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET')
 HF_TOKEN = os.getenv('HF_TOKEN')
 
+ngrok_url = ""
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
@@ -86,6 +89,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 def print_gpu_memory():
     from torch.cuda import memory_allocated, memory_reserved
 
@@ -105,6 +110,8 @@ def get_message_content(message_id: str) -> bytes:
     return response.content
 
 def auto_update_webhook_url(port: int):
+    global ngrok_url
+
     from pyngrok import ngrok
 
     ngrok.set_auth_token(NGROK_TOKEN)
@@ -270,6 +277,7 @@ def handle_image_message(event: MessageEvent):
 
 @handler.add(MessageEvent, message=AudioMessageContent)
 def handle_audio_message(event: MessageEvent):
+    global ngrok_url
     global llm, stt, tts
 
     with ApiClient(configuration) as api_client:
@@ -290,32 +298,42 @@ def handle_audio_message(event: MessageEvent):
         audio_bytes = get_message_content(event.message.id)
     
         # save to wav
-        output_file_path = "./tmp/user_audio.wav"
+        output_file_path = f"./static/user_audio_{event.message.id}.wav"
         stt.save_m4a_bytes_to_wav(audio_bytes, output_file_path)
         
-        stt_result = ""
+        stt_result = {}
         stt_result = stt.infer(output_file_path)
-        print(stt_result['text'])
-        tts.infer(stt_result['text'])
+        print(stt_result)
+        tts.infer(stt_result['text'], output_path=f"./static/tts_audio_{event.message.id}.wav")
 
-        reply_text = ""
-        if not stt_result:
-            reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
-        else:
-            reply_text = llm.infer_with_memory(user_id, f"以下是學生的語音訊息{stt_result}", prompt_role="學生音檔")
+        # reply_text = ""
+        # if not stt_result:
+        #     reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
+        # else:
+        #     reply_text = llm.infer_with_memory(user_id, f"以下是學生的語音訊息{stt_result['text']}", prompt_role="學生音檔")
 
-            if not reply_text:
-                reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
-
+        #     if not reply_text:
+        #         reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
 
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
+                messages=[TextMessage(text=stt_result['text']), 
+                          AudioMessage(original_content_url=f"{ngrok_url}/static/tts_audio_{event.message.id}.wav",
+                                        duration=get_audio_duration(output_file_path))
+                        ]
             )
         )
+
+        if os.path.exists(output_file_path):
+            os.remove(output_file_path)
         # print("message sended")
 
+def get_audio_duration(file_path: str) -> int:
+    from pydub import AudioSegment
+    audio = AudioSegment.from_file(file_path)
+    duration_ms = len(audio)
+    return duration_ms
 
 if __name__ == "__main__":
     # testing
