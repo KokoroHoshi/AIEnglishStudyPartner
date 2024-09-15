@@ -176,7 +176,10 @@ def handle_text_message(event: MessageEvent):
         reply_msgs=[]
         reply_text = ""
 
+        # if user_msg is a mode
         if llm.mode_check(user_msg):
+            user_mode = user_msg
+
             reply_text = llm.change_mode(user_id, user_msg)
 
             # 程度設置
@@ -211,13 +214,12 @@ def handle_text_message(event: MessageEvent):
             
             if do_infer:
                 reply_text = llm.infer_with_db(user_id, user_msg, rag_infomation=rag_result)
-
+            
         if not reply_text:
             reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
-        
-        # reply_msgs.append(TextMessage(text=reply_text))
+
         reply_msgs.insert(0, TextMessage(text=reply_text))
-        
+
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
@@ -325,6 +327,7 @@ def handle_audio_message(event: MessageEvent):
             )
         )
 
+        # but tts result does not delete yet
         if os.path.exists(output_file_path):
             os.remove(output_file_path)
         # print("message sended")
