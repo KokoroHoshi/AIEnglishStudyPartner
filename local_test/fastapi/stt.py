@@ -38,6 +38,19 @@ class STT:
             torch_dtype='torch.float16',
             device='cuda:0',
         )
+        print(f"{id(self)} STT loaded successfully.")
+
+    def unload(self):
+        # if not self.model_loaded:
+        #     print("model is not loaded.")
+        #     return
+        
+        del self.pipeline
+
+        torch.cuda.empty_cache()
+
+        # self.model_loaded = False
+        print(f"{id(self)} STT has been unloaded successfully.")
     
     # need to install ffmpeg first
     def save_m4a_bytes_to_wav(self, audio_bytes: BytesIO, output_file_path: str = "./tmp/user_audio.wav"):

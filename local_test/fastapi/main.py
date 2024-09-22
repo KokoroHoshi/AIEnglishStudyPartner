@@ -75,8 +75,8 @@ async def lifespan(app: FastAPI):
 
     llm.load()
     # vlm.load()
-    stt.load()
-    tts.load()
+    # stt.load()
+    # tts.load()
 
     embedding_model.load()
     index_dir = './vector_db/indices'

@@ -31,6 +31,20 @@ class VLM:
         ).eval()
 
         self.processor = AutoProcessor.from_pretrained(self.id, cache_dir=str(self.cache_dir))
+        print(f"{id(self)} VLM loaded successfully.")
+    
+    def unload(self):
+        # if not self.model_loaded:
+        #     print("model is not loaded.")
+        #     return
+        
+        del self.model
+        del self.processor
+
+        torch.cuda.empty_cache()
+
+        # self.model_loaded = False
+        print(f"{id(self)} VLM has been unloaded successfully.")
     
     def infer(self, image_bytes: bytes, prompt: str = "What is shown in this image?") -> str:
         image = Image.open(BytesIO(image_bytes)).convert('RGB')

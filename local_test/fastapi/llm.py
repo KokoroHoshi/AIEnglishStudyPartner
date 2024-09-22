@@ -258,7 +258,23 @@ class LLM:
         )
 
         self.model_loaded = True
-        # print(f"{id(self)} LLM loaded successfully")
+        print(f"{id(self)} LLM loaded successfully")
+
+    def unload(self):
+        if not self.model_loaded:
+            print("model is not loaded.")
+            return
+        
+        # self.db.close()
+        
+        del self.llm_pipeline
+        del self.llm_tokenizer
+
+        torch.cuda.empty_cache()
+
+        self.model_loaded = False
+        print(f"{id(self)} LLM has been unloaded successfully.")
+
 
     def clear_cache(self):
         # self.conversation_history.clear()
