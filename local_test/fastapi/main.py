@@ -255,9 +255,15 @@ def handle_image_message(event: MessageEvent):
         #     fd.write(image_content)
         # print(f"save image to {jpg_file}")
         
+        llm.unload()
+
         image_description = ""
+        vlm.load()
         image_description = vlm.infer(image_bytes=image_bytes, prompt="What is shown in this image?")
+        vlm.unload()
         print(image_description)
+
+        llm.load()
 
         reply_text = ""
         if not image_description:
@@ -301,26 +307,33 @@ def handle_audio_message(event: MessageEvent):
     
         # save to wav
         output_file_path = f"./static/user_audio_{event.message.id}.wav"
+        stt.load()
         stt.save_m4a_bytes_to_wav(audio_bytes, output_file_path)
         
         stt_result = {}
         stt_result = stt.infer(output_file_path)
+        stt.unload()
         print(stt_result)
-        tts.infer(stt_result['text'], output_path=f"./static/tts_audio_{event.message.id}.wav")
 
-        # reply_text = ""
-        # if not stt_result:
-        #     reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
-        # else:
-        #     reply_text = llm.infer_with_memory(user_id, f"以下是學生的語音訊息{stt_result['text']}", prompt_role="學生音檔")
+        reply_text = ""
+        if not stt_result:
+            reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
+        else:
+            # reply_text = llm.infer_with_memory(user_id, f"以下是學生的語音訊息{stt_result['text']}", prompt_role="學生音檔")
+            rag_result = None
+            reply_text = llm.infer_with_db(user_id, f"以下是學生的語音訊息{stt_result['text']}", rag_infomation=rag_result)
 
-        #     if not reply_text:
-        #         reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
+            if not reply_text:
+                reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
+
+        tts.load()
+        tts.infer(reply_text, output_path=f"./static/tts_audio_{event.message.id}.wav")
+        tts.unload()
 
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=stt_result['text']), 
+                messages=[TextMessage(text=reply_text), 
                           AudioMessage(original_content_url=f"{ngrok_url}/static/tts_audio_{event.message.id}.wav",
                                         duration=get_audio_duration(output_file_path))
                         ]
