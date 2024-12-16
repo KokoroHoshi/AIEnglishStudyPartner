@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>使用者設定</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="{{ url_for('static', path='js/user_settings.js') }}"></script>
+</head>
+<body data-user-id="{{ user_id }}">
+    <div class="container">
+        <header>使用者設定</header>
+        
+        <h2>程度設定</h2>
+        <div class="section">
+            <div class="button-group single-select">
+                <div class="button {{ 'selected' if settings.level == 'A1-A2' else '' }}" data-type="level">A1 - A2</div>
+                <div class="button {{ 'selected' if settings.level == 'B1-B2' else '' }}" data-type="level">B1 - B2</div>
+                <div class="button {{ 'selected' if settings.level == 'C1-C2' else '' }}" data-type="level">C1 - C2</div>
+            </div>
+        </div>
+
+        <h2>通知設定</h2>
+        <div class="section">
+            <label>開啟通知</label>
+            <div class="button-group single-select">
+                <div class="button {{ 'selected' if settings.notification_enabled else '' }}" data-type="notification_enabled">是</div>
+                <div class="button {{ 'selected' if not settings.notification_enabled else '' }}" data-type="notification_enabled">否</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <label>通知星期</label>
+            <div class="button-group">
+                <div class="button week-button {{ 'selected' if settings.notification_days[0] == '1' else '' }}" data-day="Sunday" data-type="notification_days">日</div>
+                <div class="button week-button {{ 'selected' if settings.notification_days[1] == '1' else '' }}" data-day="Monday" data-type="notification_days">一</div>
+                <div class="button week-button {{ 'selected' if settings.notification_days[2] == '1' else '' }}" data-day="Tuesday" data-type="notification_days">二</div>
+                <div class="button week-button {{ 'selected' if settings.notification_days[3] == '1' else '' }}" data-day="Wednesday" data-type="notification_days">三</div>
+                <div class="button week-button {{ 'selected' if settings.notification_days[4] == '1' else '' }}" data-day="Thursday" data-type="notification_days">四</div>
+                <div class="button week-button {{ 'selected' if settings.notification_days[5] == '1' else '' }}" data-day="Friday" data-type="notification_days">五</div>
+                <div class="button week-button {{ 'selected' if settings.notification_days[6] == '1' else '' }}" data-day="Saturday" data-type="notification_days">六</div>
+            </div>
+        </div>        
+
+        <div class="section">
+            <label>通知時間</label>
+            <div class="time-picker">
+                <select id="hour">
+                    {% for hour in range(24) %}
+                        <option value="{{ hour }}" {% if settings.notification_time.split(':')[0] == '{:02d}'.format(hour) %}selected{% endif %}>
+                            {{ '{:02d}'.format(hour) }}
+                        </option>
+                    {% endfor %}
+                </select>
+                時
+                <select id="minute">
+                    {% for minute in range(60) %}
+                        <option value="{{ '{:02d}'.format(minute) }}" {% if settings.notification_time.split(':')[1] == '{:02d}'.format(minute) %}selected{% endif %}>
+                            {{ '{:02d}'.format(minute) }}
+                        </option>
+                    {% endfor %}
+                </select>
+                分
+            </div>
+        </div>
+    </div>
+</body>
+</html>

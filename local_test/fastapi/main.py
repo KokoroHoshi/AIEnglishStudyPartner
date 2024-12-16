@@ -1,5 +1,9 @@
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+# from starlette.requests import Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from linebot.v3 import (
@@ -64,6 +68,12 @@ tts = TTS()
 embedding_model = TextEmbeddingModel(embedding_id, cache_dir)
 rag = None
 
+async def download_models():
+    print("Starting model downloads...")
+    await asyncio.to_thread(llm.load)
+    await asyncio.to_thread(embedding_model.load)
+    print("Model downloads completed!")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup event
@@ -73,21 +83,25 @@ async def lifespan(app: FastAPI):
 
     auto_update_webhook_url(8080)
 
+    # asyncio.create_task(download_models())
+
     llm.load()
     # vlm.load()
     # stt.load()
     # tts.load()
 
-    embedding_model.load()
+    # embedding_model.load()
     index_dir = './vector_db/indices'
     text_dir = './vector_db/texts'
     rag = RAG(embedding_model, index_dir, text_dir)
     yield
     
     # shutdown event
-    llm.db.close()
+    if hasattr(llm, "db") and llm.db:
+        llm.db.close()
 
 app = FastAPI(lifespan=lifespan)
+templates = Jinja2Templates(directory="templates")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -150,6 +164,60 @@ async def callback(request: Request):
 
     return JSONResponse(content={"status": "OK"})
 
+# from pydantic import BaseModel
+
+# class SettingsUpdate(BaseModel):
+#     user_id: str
+#     setting_type: str
+#     setting_value: str
+
+# @app.post("/api/settings/update")
+# async def update_settings(settings: SettingsUpdate):
+#     # 根據設定類型，更新資料庫
+#     conn = sqlite3.connect("database.db")
+#     cursor = conn.cursor()
+    
+#     # 假設資料表結構符合設定需求
+#     cursor.execute("""
+#         UPDATE user_settings
+#         SET {} = ?
+#         WHERE user_id = ?
+#     """.format(settings.setting_type), (settings.setting_value, settings.user_id))
+    
+#     conn.commit()
+#     conn.close()
+    
+#     return {"status": "success"}
+
+@app.get("/settings", response_class=HTMLResponse)
+async def user_settings(request: Request):
+    # user_id = request.query_params.get("user_id")
+
+    # user_id = None
+    
+    # if not user_id:
+        # return HTMLResponse(content="User ID not found.", status_code=400)
+
+    # 模擬測試資料
+    user_id = "test_user_id"
+    user_settings = {
+        "level": "A1-A2",  # 語言程度
+        "notification_enabled": False,  # 開啟通知
+        "notification_days": "1010000",  # 通知星期（二進位字符串 對應星期日到星期六）
+        "notification_time": "08:00"  # 通知時間
+    }
+
+    
+    # 查詢資料庫，獲取使用者設定
+    # user_settings = llm.get_user_settings_from_db(user_id)  # 根據 user_id 查詢設定
+
+    # 將 user_id 和設定資料傳遞給模板頁面
+    return templates.TemplateResponse("user_settings.html", {
+        "request": request, 
+        "user_id": user_id, 
+        "settings": user_settings
+    })
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event: MessageEvent):
     global llm    
@@ -196,6 +264,9 @@ def handle_text_message(event: MessageEvent):
                     ]
                 )
                 reply_msgs.append(TemplateMessage(alt_text='程度設置', template=btn_template))
+
+                # # 當用戶想查看或修改設定時，將 user_id 傳遞到 /settings 頁面
+                # return RedirectResponse(url=f"/settings?user_id={user_id}")
 
         else:
             rag_result = None

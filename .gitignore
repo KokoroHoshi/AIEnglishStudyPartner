@@ -6,7 +6,7 @@ local_test/fastapi/main_copy.py
 local_test/fastapi/vector_db/indices/*
 local_test/fastapi/vector_db/texts/*
 local_test/fastapi/tmp/*
-local_test/fastapi/static/*
+local_test/fastapi/static/*.wav
 venv
 
 .env
