@@ -82,28 +82,33 @@ class RelationalDB:
         self.connection.close()
 
 if __name__ == "__main__":
-    db = RelationalDB('relationalDB.db')
+    db = RelationalDB('test.db')
 
-    # Creating tables
-    db.create_table('user', 'id INTEGER PRIMARY KEY, name TEXT, profile_photo TEXT, status_message TEXT')
-    db.create_table('llm_params', 'id INTEGER PRIMARY KEY, english_level TEXT, current_mode TEXT, conversation_history TEXT')
+    # Creating tables based on ERD
+    db.create_table('user', 'user_id TEXT PRIMARY KEY, user_name TEXT, profile_photo TEXT')
+    db.create_table('user_setting', 'user_id TEXT PRIMARY KEY, current_mode TEXT, english_level TEXT, '
+                                    'FOREIGN KEY(user_id) REFERENCES user(user_id)')
+    db.create_table('user_notification', 'user_id TEXT PRIMARY KEY, notification_enabled INTEGER, notification_day TEXT, notification_time TEXT, '
+                                         'FOREIGN KEY(user_id) REFERENCES user(user_id)')
+    db.create_table('conversation_history', 'conversation_id TEXT PRIMARY KEY, speaker TEXT, conversation_data TEXT, timestamp TEXT')
+    db.create_table('user_conversation_relation', 'user_id TEXT, conversation_id TEXT, '
+                                                  'FOREIGN KEY(user_id) REFERENCES user(user_id), '
+                                                  'FOREIGN KEY(conversation_id) REFERENCES conversation_history(conversation_id)')
+    db.create_table('user_cache', 'cache_id TEXT PRIMARY KEY, cache_type TEXT, cache_data TEXT, timestamp TEXT')
+    db.create_table('user_cache_relation', 'user_id TEXT, cache_id TEXT, '
+                                           'FOREIGN KEY(user_id) REFERENCES user(user_id), '
+                                           'FOREIGN KEY(cache_id) REFERENCES user_cache(cache_id)')
 
-    # Inserting data
-    # db.upsert_data('user', 'id, name, profile_photo, status_message', (1, 'Alice', 'path/to/photo.jpg', 'Hello there!'))
-    # db.upsert_data('llm_params', 'id, english_level, current_mode, conversation_history', (1, 'Advanced', 'Chat', 'History text...'))
-
-    db.print_table("user")
-    db.print_table("llm_params")
-
-    # # Updating data
-    # db.update_data('user', 'name = ?', 'id = ?', ('Bob', 1))
-
-    # db.print_table("user")
-
-    # # Deleting data
-    # db.delete_data('user', 'id = ?', (1,))
-
-    # db.print_table("user")
+    # Example of inserting data
+    db.insert_data('user', 'user_id, user_name, profile_photo', ('u1', 'Alice', 'photo1.png'))
+    db.insert_data('user_setting', 'user_id, current_mode, english_level',
+                   ('u1', 'Chat', 'Intermediate'))
+    db.insert_data('user_notification', 'user_id, notification_enabled, notification_day, notification_time',
+                    ('u1', 1, 'Monday', '08:00'))
+    db.insert_data('conversation_history', 'conversation_id, speaker, conversation_data, timestamp', ('c1', 'Alice', 'Hello, how are you?', '2024-12-20 10:05:00'))
+    db.insert_data('user_conversation_relation', 'user_id, conversation_id', ('u1', 'c1'))
+    db.insert_data('user_cache', 'cache_id, cache_type, cache_data, timestamp', ('cache1', 'TypeA', 'Cache data here', '2024-12-20 10:07:00'))
+    db.insert_data('user_cache_relation', 'user_id, cache_id', ('u1', 'cache1'))
 
     # Closing the database
     db.close()

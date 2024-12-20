@@ -40,6 +40,7 @@ from vlm import VLM
 from stt import STT
 from tts import TTS
 from rag import TextEmbeddingModel, RAG
+from relationalDB import RelationalDB
 
 load_dotenv()
 
@@ -61,7 +62,10 @@ vlm_id = "google/paligemma-3b-mix-224"
 stt_id = "openai/whisper-large-v3"
 embedding_id = 'intfloat/multilingual-e5-large-instruct'
 
-llm = LLM(llm_id=llm_id, cache_dir=cache_dir, hf_token=HF_TOKEN)
+db = RelationalDB("llm_db")
+db.create_table('user', 'user_id TEXT PRIMARY KEY, name TEXT, profile_photo TEXT, status_message TEXT')
+db.create_table('parameter', 'user_id TEXT PRIMARY KEY, english_level TEXT, current_mode TEXT, conversation_history TEXT')
+llm = LLM(llm_id=llm_id, cache_dir=cache_dir, hf_token=HF_TOKEN, db_instance=db)
 vlm = VLM(model_id=vlm_id, cache_dir=cache_dir, hf_token=HF_TOKEN)
 stt = STT(model_id=stt_id, cache_dir=cache_dir, hf_token=HF_TOKEN)
 tts = TTS()
@@ -97,8 +101,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # shutdown event
-    if hasattr(llm, "db") and llm.db:
-        llm.db.close()
+    db.close()
 
 app = FastAPI(lifespan=lifespan)
 templates = Jinja2Templates(directory="templates")

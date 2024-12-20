@@ -11,7 +11,7 @@ from transformers import pipeline, BitsAndBytesConfig
 from relationalDB import RelationalDB
 
 class LLM:
-    def __init__(self, llm_id: str, cache_dir: str, hf_token: Optional[str] = None):
+    def __init__(self, llm_id: str, cache_dir: str, hf_token: Optional[str] = None, db_instance: RelationalDB = None):
         self.llm_id = llm_id
         self.cache_dir = Path(cache_dir)
         self.hf_token = hf_token
@@ -21,10 +21,7 @@ class LLM:
         self.max_history_length = 6 # it is better to set an odd 
         
         # Relational Database
-        self.db = RelationalDB("llm_db")
-        self.db.create_table('user', 'user_id TEXT PRIMARY KEY, name TEXT, profile_photo TEXT, status_message TEXT')
-        self.db.create_table('parameter', 'user_id TEXT PRIMARY KEY, english_level TEXT, current_mode TEXT, conversation_history TEXT')
-
+        self.db = db_instance
 
         self.conversation_history = []
         self.__mode = ""
@@ -712,6 +709,10 @@ class LLM:
     ) -> str:
         if not self.model_loaded:
             print("LLM is not loaded.")
+            return ""
+        
+        if self.db is None:
+            print("RelationalDB is None.")
             return ""
         
         # tmp
