@@ -302,8 +302,14 @@ def handle_text_message(event: MessageEvent):
         # if user_msg is a mode
         if llm.mode_check(user_msg):
             user_mode = user_msg
+            db.update_column_by_primary_key(
+                table_name="user_settings",
+                key_value=user_id,
+                column_name='current_mode',
+                new_value=user_mode
+            )
 
-            # reply_text = llm.change_mode(user_id, user_msg)
+            reply_text = llm.mode_reply_text[user_mode]
 
             # 設定頁面
             if user_mode == llm.modes[5]:
@@ -336,10 +342,10 @@ def handle_text_message(event: MessageEvent):
             if do_infer:
                 reply_text = llm.infer_with_db(user_id, user_msg, rag_infomation=rag_result)
             
-        if not reply_text and (user_mode != llm.modes[5]):
-            reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
-        elif reply_text:
+        if reply_text:
             reply_msgs.insert(0, TextMessage(text=reply_text))
+        elif user_mode != llm.modes[5]:
+            reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
 
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
@@ -387,7 +393,7 @@ def handle_image_message(event: MessageEvent):
         if not image_description:
             reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
         else:
-            reply_text = llm.infer_with_memory(user_id, f"這裡有張圖片，圖片描述如下{image_description}")
+            reply_text = llm.infer_with_db(user_id, prompt=f"這裡有張圖片，圖片描述如下{image_description}")
 
             if not reply_text:
                 reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."

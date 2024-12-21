@@ -10,6 +10,9 @@ from transformers import pipeline, BitsAndBytesConfig
 
 from relationalDB import RelationalDB
 
+import uuid
+from datetime import datetime, timezone
+
 class LLM:
     def __init__(self, llm_id: str, cache_dir: str, hf_token: Optional[str] = None, db_instance: RelationalDB = None):
         self.llm_id = llm_id
@@ -92,7 +95,32 @@ class LLM:
             了解學生的學習動機，以貼近母語人士，或特定專業領域人士的英文來精進學生的英文能力
         """
         }
-
+        self.mode_reply_text = {
+            "*自由閒聊":"""模式：自由閒聊
+            在這個模式下我們可以自在隨意地閒話家常，可以的話用點英文來聊天也很棒唷！
+            不知道要聊什麼的話，可以想想最近有什麼開心的事情，可以跟我分享一下！
+            """,
+            "*主題對話":"""模式：主題對話
+            在這個模式下我們可以針對特定的主題來聊聊，有需要的話我也可以提供相關單字。
+            想聊一下甚麼呢？還是最近有沒有什麼關注的事情？
+            """,
+            "*單元學習":"""模式：單元學習
+            在這個模式下我們可以透過學習範例和練習題目，來學習一些句型、時態等文法。
+            我們一次先關注一個知識點就好，你有什麼想學的嗎？
+            """,
+            "*口說練習":"""模式：單元學習
+            在這個模式下我會給你一些英文句子，讓你練習說看看。
+            請使用LINE的錄音錄下你講的內容，我會幫你聽看看，準備好的話我們就開始。
+            """,
+            "*學習資源":"""模式：學習資源
+            在這個模式下我可以提供你一些額外的學習資源或建議，讓你參考。
+            你需要哪方面的資源呢？像是單字？影片？或是Podcasts？
+            """,
+            "*程度設置":"""模式：程度設置
+            在這個模式下你可以重新設置英文程度，我會根據你的設置來調整教學方式。
+            如果不清楚自己的英文程度，我也可以幫你做一下測驗。
+            """
+        }
         # 參考CLT認知負荷理論
         self.clt_instruction = """
             教學時應該要舉實際的英文範例給學生參考學習，並且要給學生作練習題目。
@@ -713,12 +741,13 @@ class LLM:
             return ""
         
         # tmp
-        english_level, current_mode, conversation_history_from_db = self.db.get_data_by_primary_key('parameter', user_id, 'english_level, current_mode, conversation_history')
-        self.change_mode(user_id, current_mode, add_to_history=False, update_db=False)
-        self.change_level(user_id, english_level, add_to_history=False, update_db=False)
-        system_prompt = self.__system_prompt
-        level_desciption = self.__level_description
-        self.conversation_history = loads(conversation_history_from_db)
+        current_mode, english_level = self.db.get_data_by_primary_key('user_settings', user_id, 'current_mode, english_level')
+        conversation_history = self.db.get_conversations_by_user(user_id=user_id, max_history_length=self.max_history_length)
+        # self.change_mode(user_id, current_mode, add_to_history=False, update_db=False)
+        # self.change_level(user_id, english_level, add_to_history=False, update_db=False)
+        system_prompt = self.system_prompts[current_mode]
+        level_desciption = self.level_descriptions[english_level]
+        # self.conversation_history = loads(conversation_history_from_db)
 
         if rag_infomation is not None and rag_information_process:
             rag_infomation = self.infer(prompt=rag_infomation, prompt_role="retrieved information", generation_prompt_role="summarization assistant", add_to_history=False, system_prompt=
@@ -746,7 +775,7 @@ class LLM:
 
         # 要如何設定權重?
         # print(self.conversation_history)
-        if len(self.conversation_history) > 0:
+        if len(conversation_history) > 0:
             # conversation_history = '\n'.join(self.conversation_history)
             # conversation_summary = self.abstract(conversation_history)
         
@@ -757,15 +786,15 @@ class LLM:
             ]
 
             # 單元學習
-            if self.__mode == self.modes[2]:
+            if current_mode == self.modes[2]:
                 llm_messages.append({"role":"instruction", "content":f"{self.clt_instruction}"})
             
             # 學習資源
-            if self.__mode == self.modes[4] and rag_infomation is not None:
+            if current_mode == self.modes[4] and rag_infomation is not None:
                 llm_messages.append({"role":"learning resource information", "content":f"{rag_infomation}"})
 
-            for history in self.conversation_history:
-                llm_messages.append({"role": "conversation history", "content": f"{history}"})
+            for speaker, history in conversation_history:
+                llm_messages.append({"role": "conversation history", "content": f"{speaker}:{history}"})
 
             llm_messages.append({"role": f"{prompt_role}", "content": f"{prompt}"})
         else:
@@ -775,11 +804,11 @@ class LLM:
             ]
 
             # 單元學習
-            if self.__mode == self.modes[2]:
+            if current_mode == self.modes[2]:
                 llm_messages.append({"role":"instruction", "content":f"{self.clt_instruction}"})
 
             # 學習資源
-            if self.__mode == self.modes[4] and rag_infomation is not None:
+            if current_mode == self.modes[4] and rag_infomation is not None:
                 llm_messages.append({"role":"learning resource information", "content":f"{rag_infomation}"})
 
 
@@ -789,14 +818,21 @@ class LLM:
         result = self._infer(llm_messages, generation_prompt_role)
 
         if add_to_history:
-            self.conversation_history.append(f"{prompt_role}: {prompt}")
-            self.conversation_history.append(f"AI English teacher: {result}")
-
-            if len(self.conversation_history) > self.max_history_length:
-                self.conversation_history.pop(0)
-                self.conversation_history.pop(0)
-
-            self.db.update_column_by_primary_key('parameter', user_id, 'conversation_history', dumps(self.conversation_history))
+            conversation_id = str(uuid.uuid4())
+            self.db.insert_data('conversation_history',
+                                'conversation_id, speaker, conversation_data, timestamp',
+                                (conversation_id, prompt_role, prompt, datetime.now(timezone.utc).isoformat()))
+            self.db.insert_data('user_conversation_relation', 
+                                'user_id, conversation_id', 
+                                (user_id, conversation_id))
+            
+            conversation_id = str(uuid.uuid4())
+            self.db.insert_data('conversation_history',
+                                'conversation_id, speaker, conversation_data, timestamp',
+                                (conversation_id, generation_prompt_role, result, datetime.now(timezone.utc).isoformat()))
+            self.db.insert_data('user_conversation_relation', 
+                                'user_id, conversation_id', 
+                                (user_id, conversation_id))
 
         self.clear_cache()
 

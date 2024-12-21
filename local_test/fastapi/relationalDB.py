@@ -157,7 +157,6 @@ class RelationalDB:
             # Catch any unexpected exceptions and re-raise them
             raise Exception(f"An unexpected error occurred: {str(e)}")
 
-
     def print_table(self, table_name: str):
         """Print all data from the given table."""
         select_query = f"SELECT * FROM {table_name}"
@@ -169,6 +168,29 @@ class RelationalDB:
     def close(self):
         """Close the database connection."""
         self.connection.close()
+
+
+    def get_conversations_by_user(self, user_id: str, max_history_length: int) -> list:
+        """
+        Get the latest 'max_history_length' conversations related to a specific user, ordered from old to new.
+        Return (speaker, conversation_data)
+        """
+        query = """
+            SELECT speaker, conversation_data
+            FROM (
+                SELECT c.speaker, c.conversation_data, c.timestamp
+                FROM conversation_history c
+                JOIN user_conversation_relation ucr ON c.conversation_id = ucr.conversation_id
+                WHERE ucr.user_id = ?
+                ORDER BY c.timestamp DESC
+                LIMIT ?
+            ) AS subquery
+            ORDER BY subquery.timestamp ASC;
+        """
+        self.cursor.execute(query, (user_id, max_history_length))
+        return self.cursor.fetchall()
+
+
 
 if __name__ == "__main__":
     db = RelationalDB('test.db')
@@ -190,14 +212,28 @@ if __name__ == "__main__":
 
     # Example of inserting data
     db.insert_data('user', 'user_id, user_name, profile_photo', ('u1', 'Alice', 'photo1.png'))
+    db.insert_data('user', 'user_id, user_name, profile_photo', ('u2', 'Bob', 'photo2.png'))
     db.insert_data('user_settings', 'user_id, current_mode, english_level',
                    ('u1', 'Chat', 'Intermediate'))
+    db.insert_data('user_settings', 'user_id, current_mode, english_level',
+                   ('u2', 'Chat', 'Intermediate'))
     db.insert_data('user_notification', 'user_id, notification_enabled, notification_days, notification_time',
                     ('u1', 'True', 'Monday', '08:00'))
-    db.insert_data('conversation_history', 'conversation_id, speaker, conversation_data, timestamp', ('c1', 'Alice', 'Hello, how are you?', '2024-12-20 10:05:00'))
+    db.insert_data('user_notification', 'user_id, notification_enabled, notification_days, notification_time',
+                    ('u2', 'False', 'Monday', '08:00'))
+    db.insert_data('conversation_history', 'conversation_id, speaker, conversation_data, timestamp', ('c1', 'Alice', 'Hello, how are you?', '2024-12-20 06:06:00'))
     db.insert_data('user_conversation_relation', 'user_id, conversation_id', ('u1', 'c1'))
+    db.insert_data('conversation_history', 'conversation_id, speaker, conversation_data, timestamp', ('c2', 'AI', 'Hi, I\'m good. How about you?', '2024-12-20 06:07:00'))
+    db.insert_data('user_conversation_relation', 'user_id, conversation_id', ('u1', 'c2'))
+    db.insert_data('conversation_history', 'conversation_id, speaker, conversation_data, timestamp', ('c3', 'Bob', 'Hi?', '2024-12-20 06:10:00'))
+    db.insert_data('user_conversation_relation', 'user_id, conversation_id', ('u2', 'c3'))
+    db.insert_data('conversation_history', 'conversation_id, speaker, conversation_data, timestamp', ('c4', 'Alice', 'I\'m happy because we have a conversation now.', '2024-12-20 06:16:00'))
+    db.insert_data('user_conversation_relation', 'user_id, conversation_id', ('u1', 'c4'))
     db.insert_data('user_cache', 'cache_id, cache_type, cache_data, timestamp', ('cache1', 'TypeA', 'Cache data here', '2024-12-20 10:07:00'))
     db.insert_data('user_cache_relation', 'user_id, cache_id', ('u1', 'cache1'))
+
+    # Select test
+    print(db.get_conversations_by_user('u1'))
 
     # Closing the database
     db.close()
