@@ -1,11 +1,12 @@
 import asyncio
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-# from starlette.requests import Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+
 from linebot.v3 import (
     WebhookHandler
 )
@@ -25,9 +26,9 @@ from linebot.v3.messaging import (
     ButtonsTemplate,
     MessageAction,
     TemplateMessage,
-    AudioMessage
+    AudioMessage,
+    URIAction
 )
-
 
 import time
 import requests
@@ -41,6 +42,8 @@ from stt import STT
 from tts import TTS
 from rag import TextEmbeddingModel, RAG
 from relationalDB import RelationalDB
+
+from schemas import SettingsUpdate
 
 load_dotenv()
 
@@ -62,9 +65,20 @@ vlm_id = "google/paligemma-3b-mix-224"
 stt_id = "openai/whisper-large-v3"
 embedding_id = 'intfloat/multilingual-e5-large-instruct'
 
-db = RelationalDB("llm_db")
-db.create_table('user', 'user_id TEXT PRIMARY KEY, name TEXT, profile_photo TEXT, status_message TEXT')
-db.create_table('parameter', 'user_id TEXT PRIMARY KEY, english_level TEXT, current_mode TEXT, conversation_history TEXT')
+db = RelationalDB("relational_db")
+db.create_table('user', 'user_id TEXT PRIMARY KEY, user_name TEXT, profile_photo TEXT')
+db.create_table('user_settings', 'user_id TEXT PRIMARY KEY, current_mode TEXT, english_level TEXT, '
+                                'FOREIGN KEY(user_id) REFERENCES user(user_id)')
+db.create_table('user_notification', 'user_id TEXT PRIMARY KEY, notification_enabled TEXT, notification_days TEXT, notification_time TEXT, '
+                                        'FOREIGN KEY(user_id) REFERENCES user(user_id)')
+db.create_table('conversation_history', 'conversation_id TEXT PRIMARY KEY, speaker TEXT, conversation_data TEXT, timestamp TEXT')
+db.create_table('user_conversation_relation', 'user_id TEXT, conversation_id TEXT, '
+                                                'FOREIGN KEY(user_id) REFERENCES user(user_id), '
+                                                'FOREIGN KEY(conversation_id) REFERENCES conversation_history(conversation_id)')
+db.create_table('user_cache', 'cache_id TEXT PRIMARY KEY, cache_type TEXT, cache_data TEXT, timestamp TEXT')
+db.create_table('user_cache_relation', 'user_id TEXT, cache_id TEXT, '
+                                        'FOREIGN KEY(user_id) REFERENCES user(user_id), '
+                                        'FOREIGN KEY(cache_id) REFERENCES user_cache(cache_id)')
 llm = LLM(llm_id=llm_id, cache_dir=cache_dir, hf_token=HF_TOKEN, db_instance=db)
 vlm = VLM(model_id=vlm_id, cache_dir=cache_dir, hf_token=HF_TOKEN)
 stt = STT(model_id=stt_id, cache_dir=cache_dir, hf_token=HF_TOKEN)
@@ -108,6 +122,7 @@ templates = Jinja2Templates(directory="templates")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
 def print_gpu_memory():
     from torch.cuda import memory_allocated, memory_reserved
 
@@ -115,6 +130,17 @@ def print_gpu_memory():
     reserved = memory_reserved()
     print(f"Allocated: {allocated / (1024 ** 3):.2f} GB")
     print(f"Reserved: {reserved / (1024 ** 3):.2f} GB")
+
+def add_new_user(user_id, user_name, user_profile_photo):
+    db.insert_data('user',
+                    'user_id, user_name, profile_photo',
+                    (user_id, user_name, user_profile_photo))
+    db.insert_data('user_settings',
+                    'user_id, current_mode, english_level', 
+                    (user_id, llm.modes[0], llm.levels[0]))
+    db.insert_data('user_notification', 
+                    'user_id, notification_enabled, notification_days, notification_time', 
+                    (user_id, 'False', '0000000', '00:00'))
 
 # tmp /because cannot find how to get image with linebot v3 (there is no get_message_content in v3) 
 def get_message_content(message_id: str) -> bytes:
@@ -125,6 +151,12 @@ def get_message_content(message_id: str) -> bytes:
     response = requests.get(url, headers=headers, stream=True)
     response.raise_for_status()
     return response.content
+
+def get_audio_duration(file_path: str) -> int:
+    from pydub import AudioSegment
+    audio = AudioSegment.from_file(file_path)
+    duration_ms = len(audio)
+    return duration_ms
 
 def auto_update_webhook_url(port: int):
     global ngrok_url
@@ -167,59 +199,81 @@ async def callback(request: Request):
 
     return JSONResponse(content={"status": "OK"})
 
-# from pydantic import BaseModel
-
-# class SettingsUpdate(BaseModel):
-#     user_id: str
-#     setting_type: str
-#     setting_value: str
-
-# @app.post("/api/settings/update")
-# async def update_settings(settings: SettingsUpdate):
-#     # 根據設定類型，更新資料庫
-#     conn = sqlite3.connect("database.db")
-#     cursor = conn.cursor()
+@app.post("/api/user_settings/update/user_settings")
+async def update_user_settings(settings: SettingsUpdate):
+    try:
+        db.update_column_by_primary_key(
+            table_name="user_settings",
+            key_value=settings.user_id,
+            column_name=settings.type,
+            new_value=settings.value
+        )
+        return {"status": "success"}
     
-#     # 假設資料表結構符合設定需求
-#     cursor.execute("""
-#         UPDATE user_settings
-#         SET {} = ?
-#         WHERE user_id = ?
-#     """.format(settings.setting_type), (settings.setting_value, settings.user_id))
+    except ValueError as e:
+        # Handle known errors, like invalid column name
+        raise HTTPException(status_code=400, detail=f"Bad Request: {str(e)}")
     
-#     conn.commit()
-#     conn.close()
-    
-#     return {"status": "success"}
+    except Exception as e:
+        # Handle any unexpected errors
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
-@app.get("/settings", response_class=HTMLResponse)
+@app.post("/api/user_settings/update/user_notification")
+async def update_user_notification(settings: SettingsUpdate):
+    try:
+        db.update_column_by_primary_key(
+            table_name="user_notification",
+            key_value=settings.user_id,
+            column_name=settings.type,
+            new_value=settings.value
+        )
+        return {"status": "success"}
+    
+    except ValueError as e:
+        # Handle known errors, like invalid column name
+        raise HTTPException(status_code=400, detail=f"Bad Request: {str(e)}")
+    
+    except Exception as e:
+        # Handle any unexpected errors
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+@app.get("/user_settings", response_class=HTMLResponse)
 async def user_settings(request: Request):
-    # user_id = request.query_params.get("user_id")
+    # 從 GET 請求的查詢參數中提取 user_id
+    user_id = request.query_params.get("user_id")
 
-    # user_id = None
-    
-    # if not user_id:
-        # return HTMLResponse(content="User ID not found.", status_code=400)
+    # 檢查 user_id 是否有效
+    if not user_id:
+        return HTMLResponse(content="User ID not found.", status_code=400)
 
-    # 模擬測試資料
-    user_id = "test_user_id"
+    # 查詢 user_settings 的資料
+    notification_data = db.get_data_by_primary_key(
+        table_name="user_notification",
+        key_value=user_id,
+        columns="notification_enabled, notification_days, notification_time"
+    )
+
     user_settings = {
-        "level": "A1-A2",  # 語言程度
-        "notification_enabled": False,  # 開啟通知
-        "notification_days": "1010000",  # 通知星期（二進位字符串 對應星期日到星期六）
-        "notification_time": "08:00"  # 通知時間
+        "english_level": db.get_data_by_primary_key(table_name="user_settings", key_value=user_id, columns="english_level")[0],  # 語言程度
+        "notification_enabled": notification_data[0],  # 開啟通知
+        "notification_days": notification_data[1],  # 通知星期（二進位字符串 對應星期日到星期六）
+        "notification_time": notification_data[2]  # 通知時間
     }
 
-    
-    # 查詢資料庫，獲取使用者設定
-    # user_settings = llm.get_user_settings_from_db(user_id)  # 根據 user_id 查詢設定
+    # print(user_settings)
 
-    # 將 user_id 和設定資料傳遞給模板頁面
+    # 返回渲染模板，並添加強制不緩存的標頭
+    headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",  # 禁用緩存
+        "Pragma": "no-cache",  # 向舊版瀏覽器發送請求
+        "Expires": "0"  # 設置過期時間
+    }
     return templates.TemplateResponse("user_settings.html", {
-        "request": request, 
-        "user_id": user_id, 
+        "request": request,
+        "user_id": user_id,
         "settings": user_settings
-    })
+    }, headers=headers)
+
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text_message(event: MessageEvent):
@@ -233,16 +287,14 @@ def handle_text_message(event: MessageEvent):
         user_profile = line_bot_api.get_profile(user_id)
         user_name = user_profile.display_name
         user_profile_photo = user_profile.picture_url
-        user_status_message = user_profile.status_message
+        # user_status_message = user_profile.status_message
 
-        if not llm.db.exists("user", user_id):
-            llm.db.insert_data('user', 'user_id, name, profile_photo, status_message',
-                            (user_id, user_name, user_profile_photo, user_status_message))
-            llm.db.insert_data('parameter', 'user_id, english_level, current_mode, conversation_history', 
-                               (user_id, llm.levels[0], llm.modes[0], '[]'))
-
+        if not db.exists("user", user_id):
+            add_new_user(user_id, user_name, user_profile_photo)
         
-        user_mode = llm.get_user_mode(user_id)
+        user_mode = db.get_data_by_primary_key(table_name='user_settings',
+                                               key_value=user_id,
+                                               columns='current_mode')[0]
         user_msg = event.message.text
         reply_msgs=[]
         reply_text = ""
@@ -251,25 +303,19 @@ def handle_text_message(event: MessageEvent):
         if llm.mode_check(user_msg):
             user_mode = user_msg
 
-            reply_text = llm.change_mode(user_id, user_msg)
+            # reply_text = llm.change_mode(user_id, user_msg)
 
-            # 程度設置
+            # 設定頁面
             if user_mode == llm.modes[5]:
-                reply_msgs.append(TextMessage(text=f"目前設置的程度: {llm.get_user_level(user_id)[1:]}"))
                 btn_template = ButtonsTemplate(
-                    title='程度設置',
-                    text='請選擇想要設置的程度',
+                    title='設定頁面',
+                    text='點選前往設定頁面',
                     actions=[
-                        MessageAction(label='A1-A2', text='$A1-A2'),
-                        MessageAction(label='B1-B2', text='$B1-B2'),
-                        MessageAction(label='C1-C2', text='$C1-C2'),
-                        MessageAction(label='不清楚自己的程度', text='不清楚自己的程度'),
+                        URIAction(label='設定頁面', uri=f'{ngrok_url}/user_settings?user_id={user_id}')
                     ]
                 )
-                reply_msgs.append(TemplateMessage(alt_text='程度設置', template=btn_template))
 
-                # # 當用戶想查看或修改設定時，將 user_id 傳遞到 /settings 頁面
-                # return RedirectResponse(url=f"/settings?user_id={user_id}")
+                reply_msgs.append(TemplateMessage(alt_text='程度設置', template=btn_template))
 
         else:
             rag_result = None
@@ -282,17 +328,18 @@ def handle_text_message(event: MessageEvent):
             
             # 程度設置
             if user_mode == llm.modes[5]:
-                if llm.level_check(user_msg):
-                    reply_text = llm.change_level(user_id, user_msg)
-                    do_infer = False
+                do_infer = False
+                # if llm.level_check(user_msg):
+                #     reply_text = llm.change_level(user_id, user_msg)
+                #     do_infer = False
             
             if do_infer:
                 reply_text = llm.infer_with_db(user_id, user_msg, rag_infomation=rag_result)
             
-        if not reply_text:
+        if not reply_text and (user_mode != llm.modes[5]):
             reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
-
-        reply_msgs.insert(0, TextMessage(text=reply_text))
+        elif reply_text:
+            reply_msgs.insert(0, TextMessage(text=reply_text))
 
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
@@ -313,13 +360,10 @@ def handle_image_message(event: MessageEvent):
         user_profile = line_bot_api.get_profile(user_id)
         user_name = user_profile.display_name
         user_profile_photo = user_profile.picture_url
-        user_status_message = user_profile.status_message
+        # user_status_message = user_profile.status_message
 
-        if not llm.db.exists("user", user_id):
-            llm.db.insert_data('user', 'user_id, name, profile_photo, status_message',
-                            (user_id, user_name, user_profile_photo, user_status_message))
-            llm.db.insert_data('parameter', 'user_id, english_level, current_mode, conversation_history', 
-                               (user_id, llm.levels[0], llm.modes[0], '[]'))
+        if not db.exists("user", user_id):
+            add_new_user(user_id, user_name, user_profile_photo)
         
         image_bytes = get_message_content(event.message.id)
 
@@ -371,11 +415,8 @@ def handle_audio_message(event: MessageEvent):
         user_profile_photo = user_profile.picture_url
         user_status_message = user_profile.status_message
 
-        if not llm.db.exists("user", user_id):
-            llm.db.insert_data('user', 'user_id, name, profile_photo, status_message',
-                            (user_id, user_name, user_profile_photo, user_status_message))
-            llm.db.insert_data('parameter', 'user_id, english_level, current_mode, conversation_history', 
-                               (user_id, llm.levels[0], llm.modes[0], '[]'))
+        if not db.exists("user", user_id):
+            add_new_user(user_id, user_name, user_profile_photo)
         
         audio_bytes = get_message_content(event.message.id)
     
@@ -418,12 +459,6 @@ def handle_audio_message(event: MessageEvent):
         if os.path.exists(output_file_path):
             os.remove(output_file_path)
         # print("message sended")
-
-def get_audio_duration(file_path: str) -> int:
-    from pydub import AudioSegment
-    audio = AudioSegment.from_file(file_path)
-    duration_ms = len(audio)
-    return duration_ms
 
 if __name__ == "__main__":
     # testing

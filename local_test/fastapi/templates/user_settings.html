@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>使用者設定</title>
     <link rel="stylesheet" href="/static/css/styles.css">
-    <script src="{{ url_for('static', path='js/user_settings.js') }}"></script>
+    <script src="{{ url_for('static', path='js/user_settings.v1.js') }}"></script>
 </head>
 <body data-user-id="{{ user_id }}">
     <div class="container">
@@ -14,9 +14,9 @@
         <h2>程度設定</h2>
         <div class="section">
             <div class="button-group single-select">
-                <div class="button {{ 'selected' if settings.level == 'A1-A2' else '' }}" data-type="level">A1 - A2</div>
-                <div class="button {{ 'selected' if settings.level == 'B1-B2' else '' }}" data-type="level">B1 - B2</div>
-                <div class="button {{ 'selected' if settings.level == 'C1-C2' else '' }}" data-type="level">C1 - C2</div>
+                <div class="button {{ 'selected' if settings.english_level == '$A1-A2' else '' }}" data-type="english_level">A1 - A2</div>
+                <div class="button {{ 'selected' if settings.english_level == '$B1-B2' else '' }}" data-type="english_level">B1 - B2</div>
+                <div class="button {{ 'selected' if settings.english_level == '$C1-C2' else '' }}" data-type="english_level">C1 - C2</div>
             </div>
         </div>
 
@@ -24,8 +24,8 @@
         <div class="section">
             <label>開啟通知</label>
             <div class="button-group single-select">
-                <div class="button {{ 'selected' if settings.notification_enabled else '' }}" data-type="notification_enabled">是</div>
-                <div class="button {{ 'selected' if not settings.notification_enabled else '' }}" data-type="notification_enabled">否</div>
+                <div class="button {{ 'selected' if settings.notification_enabled == 'True' else '' }}" data-type="notification_enabled">是</div>
+                <div class="button {{ 'selected' if settings.notification_enabled == 'False' else '' }}" data-type="notification_enabled">否</div>
             </div>
         </div>
 
@@ -47,7 +47,10 @@
             <div class="time-picker">
                 <select id="hour">
                     {% for hour in range(24) %}
-                        <option value="{{ hour }}" {% if settings.notification_time.split(':')[0] == '{:02d}'.format(hour) %}selected{% endif %}>
+                        <option value="{{ '{:02d}'.format(hour) }}" 
+                            {% if settings.notification_time.split(':')[0] == '{:02d}'.format(hour) %}
+                                selected
+                            {% endif %}>
                             {{ '{:02d}'.format(hour) }}
                         </option>
                     {% endfor %}
@@ -55,13 +58,16 @@
                 時
                 <select id="minute">
                     {% for minute in range(60) %}
-                        <option value="{{ '{:02d}'.format(minute) }}" {% if settings.notification_time.split(':')[1] == '{:02d}'.format(minute) %}selected{% endif %}>
+                        <option value="{{ '{:02d}'.format(minute) }}" 
+                            {% if settings.notification_time.split(':')[1] == '{:02d}'.format(minute) %}
+                                selected
+                            {% endif %}>
                             {{ '{:02d}'.format(minute) }}
                         </option>
                     {% endfor %}
                 </select>
                 分
-            </div>
+            </div>            
         </div>
     </div>
 </body>

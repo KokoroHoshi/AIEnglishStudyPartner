@@ -213,9 +213,6 @@ class LLM:
 
         return reply_text
 
-    def get_user_mode(self, user_id: str) -> str:
-        return self.db.get_data_by_primary_key('parameter', user_id, 'current_mode')[0]
-
     def get_user_level(self, user_id: str) -> str:
         return self.db.get_data_by_primary_key('parameter', user_id, 'english_level')[0]
 
