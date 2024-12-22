@@ -321,26 +321,17 @@ def handle_text_message(event: MessageEvent):
                     ]
                 )
 
-                reply_msgs.append(TemplateMessage(alt_text='程度設置', template=btn_template))
+                reply_msgs.append(TemplateMessage(alt_text='設定頁面', template=btn_template))
 
         else:
             rag_result = None
-            do_infer = True
 
             # 學習資源
             if user_mode == llm.modes[4]:
                 rag_result = rag.retrieve_by_id(id='learning_resource', query=user_msg)
                 # print(rag_result)
-            
-            # 程度設置
-            if user_mode == llm.modes[5]:
-                do_infer = False
-                # if llm.level_check(user_msg):
-                #     reply_text = llm.change_level(user_id, user_msg)
-                #     do_infer = False
-            
-            if do_infer:
-                reply_text = llm.infer_with_db(user_id, user_msg, rag_infomation=rag_result)
+
+            reply_text = llm.infer_with_db(user_id, user_msg, rag_infomation=rag_result)
             
         if reply_text:
             reply_msgs.insert(0, TextMessage(text=reply_text))
@@ -419,7 +410,7 @@ def handle_audio_message(event: MessageEvent):
         user_profile = line_bot_api.get_profile(user_id)
         user_name = user_profile.display_name
         user_profile_photo = user_profile.picture_url
-        user_status_message = user_profile.status_message
+        # user_status_message = user_profile.status_message
 
         if not db.exists("user", user_id):
             add_new_user(user_id, user_name, user_profile_photo)

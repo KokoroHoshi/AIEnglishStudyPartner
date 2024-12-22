@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Optional
 from re import sub, match
-from json import loads, dumps
 
 import torch
 
@@ -26,17 +25,9 @@ class LLM:
         # Relational Database
         self.db = db_instance
 
-        self.conversation_history = []
-        self.__mode = ""
-        self.__level = ""
-        self.__system_prompt = ""
-        self.__level_description = ""
-        self.instruction = ""
-        self.abstraction = ""
-
         self.modes = ["*自由閒聊", "*主題對話", "*單元學習", "*口說練習", "*學習資源", "*程度設置"]
         self.levels = ["$A1-A2", "$B1-B2", "$C1-C2"]
-        # 主題對話加爬蟲?
+
         self.system_prompts = {
             "*自由閒聊":"""
                 你是一位AI英文老師，正和學生們在LINE交談，幫助他們學習英文。
@@ -155,10 +146,6 @@ class LLM:
         """
         
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.__mode = self.modes[0]
-        self.__system_prompt = self.system_prompts[self.__mode]
-        # tmp
-        # self.instruction = self.instruction_a
 
     def mode_check(self, user_msg: str) -> bool:
         if match(r'^\*', user_msg):
@@ -173,76 +160,6 @@ class LLM:
                 if user_msg == level:
                     return True
         return False
-    
-    def change_mode(self, user_id: str, mode: str, add_to_history: bool = True, update_db: bool = True) -> str:
-        if update_db:
-            self.db.update_column_by_primary_key('parameter', user_id, 'current_mode', mode)
-        
-        self.__mode = mode
-        self.__system_prompt = self.system_prompts[mode]
-        reply_text = ""
-
-        if mode == "*自由閒聊":
-            reply_text = """模式：自由閒聊
-            在這個模式下我們可以自在隨意地閒話家常，可以的話用點英文來聊天也很棒唷！
-            不知道要聊什麼的話，可以想想最近有什麼開心的事情，可以跟我分享一下！
-            """
-        elif mode == "*主題對話":
-            reply_text = """模式：主題對話
-            在這個模式下我們可以針對特定的主題來聊聊，有需要的話我也可以提供相關單字。
-            想聊一下甚麼呢？還是最近有沒有什麼關注的事情？
-            """
-        elif mode == "*單元學習":
-            reply_text = """模式：單元學習
-            在這個模式下我們可以透過學習範例和練習題目，來學習一些句型、時態等文法。
-            我們一次先關注一個知識點就好，你有什麼想學的嗎？
-            """
-        elif mode == "*口說練習":
-            reply_text = """模式：單元學習
-            在這個模式下我會給你一些英文句子，讓你練習說看看。
-            請使用LINE的錄音錄下你講的內容，我會幫你聽看看，準備好的話我們就開始。
-            """
-        elif mode == "*學習資源":
-           reply_text = """模式：學習資源
-            在這個模式下我可以提供你一些額外的學習資源或建議，讓你參考。
-            你需要哪方面的資源呢？像是單字？影片？或是Podcasts？
-            """
-        elif mode == "*程度設置":
-           reply_text = """模式：程度設置
-            在這個模式下你可以重新設置英文程度，我會根據你的設置來調整教學方式。
-            如果不清楚自己的英文程度，我也可以幫你做一下測驗。
-            """
-
-        if add_to_history:
-            self.conversation_history.append(f"學生： 切換模式：{mode}")
-            self.conversation_history.append(f"AI 英文老師： {reply_text}")
-
-            if len(self.conversation_history) > self.max_history_length:
-                self.conversation_history.pop(0)
-                self.conversation_history.pop(0)
-
-        return reply_text
-
-    def change_level(self, user_id: str, level: str, add_to_history: bool = True, update_db: bool = True) -> str:
-        if update_db:
-            self.db.update_column_by_primary_key('parameter', user_id, 'english_level', level)
-        
-        self.__level = level
-        self.__level_description = self.level_descriptions[level]
-        reply_text = f"已將程度設置為{level[1:]}"
-
-        if add_to_history:
-            self.conversation_history.append(f"學生： 設置程度：{level}")
-            self.conversation_history.append(f"AI 英文老師： {reply_text}")
-
-            if len(self.conversation_history) > self.max_history_length:
-                self.conversation_history.pop(0)
-                self.conversation_history.pop(0)
-
-        return reply_text
-
-    def get_user_level(self, user_id: str) -> str:
-        return self.db.get_data_by_primary_key('parameter', user_id, 'english_level')[0]
 
     def load(self):
         if self.model_loaded:
@@ -297,9 +214,7 @@ class LLM:
         self.model_loaded = False
         print(f"{id(self)} LLM has been unloaded successfully.")
 
-
     def clear_cache(self):
-        # self.conversation_history.clear()
         torch.cuda.empty_cache()
 
 
@@ -393,10 +308,7 @@ class LLM:
             add_generation_prompt=add_generation_prompt
         )
         if add_generation_prompt:
-            # llm_prompt = llm_prompt.replace("assistant", generation_prompt_role, 1) 
             llm_prompt = sub(r'assistant(?!.*assistant)', generation_prompt_role, llm_prompt)
-        print(f"{generation_prompt_role}_LLM_Prompt: {llm_prompt}")
-
 
         llm_terminators = [
             self.llm_tokenizer.eos_token_id,
@@ -417,9 +329,9 @@ class LLM:
         self.clear_cache()
 
         return result
-
+    
     def infer(self, prompt: str, prompt_role: str = "student", generation_prompt_role: str = "AI English teacher",
-               add_to_history: bool = True, system_prompt: str =
+              system_prompt: str =
         """
             You are an AI English teacher conversing with students on LINE, helping them learn English.
         """
@@ -435,20 +347,12 @@ class LLM:
 
         result = self._infer(llm_messages, generation_prompt_role)
 
-        if add_to_history:
-            self.conversation_history.append({"role": f"{prompt_role}", "content": f"{prompt}"})
-            self.conversation_history.append({"role": f"AI English teacher", "content": f"{result}"})
-
-            if len(self.conversation_history) > self.max_history_length:
-                self.conversation_history.pop(0)
-                self.conversation_history.pop(0)
-
         self.clear_cache()
 
         return result
     
     def infer_zh(self, prompt: str, prompt_role: str = "學生", generation_prompt_role: str = "AI英文老師",
-               add_to_history: bool = True, system_prompt: str =
+                 system_prompt: str =
         """
             你是一位AI英文老師，正和學生們在LINE交談，幫助他們學習英文。
             注意教學生時，盡量多使用中文輔助教學。
@@ -465,266 +369,10 @@ class LLM:
 
         result = self._infer_zh(llm_messages, generation_prompt_role)
 
-        if add_to_history:
-            self.conversation_history.append({"role": f"{prompt_role}", "content": f"{prompt}"})
-            self.conversation_history.append({"role": f"AI英文老師", "content": f"{result}"})
-
-            if len(self.conversation_history) > self.max_history_length:
-                self.conversation_history.pop(0)
-                self.conversation_history.pop(0)
-
         self.clear_cache()
 
         return result
 
-    # this function connect with db but without rag and english level
-    def infer_with_memory(self, user_id: str, prompt: str, prompt_role: str = "student", generation_prompt_role: str = "AI English teacher",
-                           add_to_history: str = True, system_prompt: str =
-        """
-            You are an AI English teacher conversing with students on LINE, helping them learn English.
-        """
-    ) -> str:
-        if not self.model_loaded:
-            print("LLM is not loaded.")
-            return ""
-        
-        # tmp
-        english_level, current_mode, conversation_history_from_db = self.db.get_data_by_primary_key('parameter', user_id, 'english_level, current_mode, conversation_history')
-        self.change_mode(user_id, current_mode, add_to_history=False, update_db=False)
-        system_prompt = self.__system_prompt
-        self.conversation_history = loads(conversation_history_from_db)
-
-
-        # 要如何設定權重?
-        print(self.conversation_history)
-        if len(self.conversation_history) > 0:
-            conversation_history = '\n'.join(self.conversation_history)
-            conversation_summary = self.abstract(conversation_history)
-        
-            llm_messages = [
-                {"role": "system", "content": f"{system_prompt}"},
-                {"role": "conversation summary", "content": f"{conversation_summary}"}
-            ]
-
-            # 單元學習
-            if self.__mode == self.modes[2]:
-                llm_messages.append({"role":"instruction", "content":f"{self.clt_instruction}"})
-
-            for history in self.conversation_history:
-                llm_messages.append({"role": "conversation history", "content": f"{history}"})
-
-            llm_messages.append({"role": f"{prompt_role}", "content": f"{prompt}"})
-        else:
-            llm_messages = [
-                {"role": "system", "content": f"{system_prompt}"},
-            ]
-
-            # 單元學習
-            if self.__mode == self.modes[2]:
-                llm_messages.append({"role":"instruction", "content":f"{self.clt_instruction}"})
-
-            llm_messages.append({"role": f"{prompt_role}", "content": f"{prompt}"})
-
-        result = self._infer(llm_messages, generation_prompt_role)
-
-        if add_to_history:
-            self.conversation_history.append(f"{prompt_role}: {prompt}")
-            self.conversation_history.append(f"AI English teacher: {result}")
-
-            if len(self.conversation_history) > self.max_history_length:
-                self.conversation_history.pop(0)
-                self.conversation_history.pop(0)
-
-            self.db.update_column_by_primary_key('parameter', user_id, 'conversation_history', dumps(self.conversation_history))
-
-        self.clear_cache()
-
-        return result
-    
-    def infer_with_memory_zh(self, prompt: str, prompt_role: str = "學生", generation_prompt_role: str = "AI英文老師",
-                           add_to_history: str = True, system_prompt: str =
-        """
-            你是一位AI英文老師，正和學生們在LINE交談，幫助他們學習英文。
-            注意教學生時，盡量多使用中文輔助教學。
-        """
-    ) -> str:
-        if not self.model_loaded:
-            print("LLM is not loaded.")
-            return ""
-        
-        if len(self.conversation_history) > 0:
-            conversation_history = '\n'.join(self.conversation_history)
-            conversation_summary = self.abstract_zh(conversation_history)
-
-            llm_messages = [
-                {"role": "系統", "content": f"{system_prompt}"},
-                {"role": "對話摘要", "content": f"{conversation_summary}"},
-                {"role": f"{prompt_role}", "content": f"{prompt}"}
-            ]
-
-            # llm_messages.append({"role": "指示", "content": f"根據不同程度的學生，可以採取不同的教學模式，以下是你的學生目前的程度： {self.instruction}"})
-        else:
-            llm_messages = [
-                {"role": "系統", "content": f"{system_prompt}"},
-                {"role": f"{prompt_role}", "content": f"{prompt}"}
-            ]
-
-        result = self._infer_zh(llm_messages, generation_prompt_role)
-
-        if add_to_history:
-            self.conversation_history.append(f"{prompt_role}: {prompt}")
-            self.conversation_history.append(f"AI英文老師: {result}")
-
-            if len(self.conversation_history) > self.max_history_length:
-                self.conversation_history.pop(0)
-                self.conversation_history.pop(0)
-
-        self.clear_cache()
-
-        return result
-
-    def infer_with_rag(self, rag_infomation: str, prompt: str, prompt_role: str = "student", generation_prompt_role: str = "AI English teacher",
-                        add_to_history: bool = True, system_prompt: str =
-        """
-            You are an AI English teacher conversing with students on LINE, helping them learn English.
-        """
-    ) -> str:
-        if not self.model_loaded:
-            print("LLM is not loaded.")
-            return ""
-        
-        # print(f"rag_infomation: {rag_infomation}")
-
-        rag_infomation = self.infer(prompt=rag_infomation, prompt_role="retrieved information", generation_prompt_role="summarization assistant", add_to_history=False, system_prompt=
-            """
-                You are a summarization assistant.
-                Summarize the key points of the retrieved information below.
-                The information may be fragmented and may contain overlapping parts due to chunking.
-                Keep it concise and to the point, removing any redundant or repeated information.
-                Note! If there are hyperlinks in the information, try to retain them as complete as possible.
-                
-                Example:
-                Retrieved Information:
-                1. AI teacher introduced themselves and asked for the user's name and English level. The user, John, mentioned their
-                2. John, mentioned their English level is B1. The AI teacher recommended John to watch English
-                3. recommended John to watch English pronunciation videos. 
-                
-                Summary:
-                * The AI teacher introduced themselves and asked for the user's name and English level.
-                * The user, John, mentioned their English level is B1.
-                * The AI teacher recommended John to watch English pronunciation videos.
-                
-                Retrieved Information to summarize:
-            """
-        )
-        
-        # print(f"summary rag_infomation: {rag_infomation}")
-
-        if len(self.conversation_history) > 0:
-            conversation_summary = self.abstract(self.conversation_history)
-            llm_messages = [
-                {"role": "system", "content": f"{system_prompt}"},
-                {"role": "conversation summary", "content": f"{conversation_summary}"}
-            ]
-
-            # for history in self.conversation_history:
-            #     llm_messages.append({"role": "conversation history", "content": f"{history}"})
-
-            llm_messages.append({"role": f"retrieved information summary", "content": f"{rag_infomation}"})
-            llm_messages.append({"role": f"{prompt_role}", "content": f"{prompt}"})
-        else:
-            llm_messages = [
-                {"role": "system", "content": f"{system_prompt}"},
-                {"role": "retrieved information summary", "content": f"{rag_infomation}"},
-                {"role": f"{prompt_role}", "content": f"{prompt}"}
-            ]
-
-        result = self._infer(llm_messages, generation_prompt_role)
-
-        if add_to_history:
-            self.conversation_history.append(f"{prompt_role}: {prompt}")
-            self.conversation_history.append(f"AI English teacher: {result}")
-
-            if len(self.conversation_history) > self.max_history_length:
-                self.conversation_history.pop(0)
-                self.conversation_history.pop(0)
-
-        self.clear_cache()
-
-        return result
-
-    def infer_with_rag_zh(self, rag_infomation: str, prompt: str, prompt_role: str = "學生", generation_prompt_role: str = "AI英文老師",
-                        add_to_history: bool = True, system_prompt: str =
-        """
-            你是一位AI英文老師，正和學生們在LINE交談，並且幫助他們學習英文。
-            注意教學生時，盡量多使用中文輔助教學。
-        """
-    ) -> str:
-        if not self.model_loaded:
-            print("LLM is not loaded.")
-            return ""
-        
-        # print(f"rag_infomation: {rag_infomation}")
-
-        rag_infomation = self.infer_zh(prompt=rag_infomation, prompt_role="資訊", generation_prompt_role="摘要助手", add_to_history=False, system_prompt=
-            """
-                你是位整理對話紀錄並抓出摘要的助手。
-                整理以下資訊並列出摘要。
-                資訊可能呈現碎片化或部分重疊，因為這些資訊是被切過的。 
-                專注在抓出重點，並移除資訊中多餘或重複的部分。
-                注意！如果資訊中有超連結網址，要盡量完整保留。
-                
-                舉例：
-                資訊：
-                1. AI 老師介紹了他自己，並問了學生的名字與英文程度。學生叫John，提到他
-                2. John提到他的英文程度是B1，因此AI老師推薦John可以看看英文
-                3. 推薦John可以看看英文發音的影片。 
-                
-                資訊摘要：
-                * AI老師介紹了他自己，並問了學生的名字和英文程度。
-                * 學生叫John，說到自己的英文程度是B1。
-                * AI 老師建議John看英文發音的教學影片。
-                
-                待處理的資訊：
-            """
-        )
-        
-        # print(f"summary rag_infomation: {rag_infomation}")
-
-        if len(self.conversation_history) > 0:
-            conversation_summary = self.abstract_zh(self.conversation_history)
-            llm_messages = [
-                {"role": "系統", "content": f"{system_prompt}"},
-                {"role": "對話摘要", "content": f"{conversation_summary}"}
-            ]
-
-            # for history in self.conversation_history:
-            #     llm_messages.append({"role": "conversation history", "content": f"{history}"})
-
-            llm_messages.append({"role": f"資訊摘要", "content": f"{rag_infomation}"})
-            llm_messages.append({"role": f"{prompt_role}", "content": f"{prompt}"})
-        else:
-            llm_messages = [
-                {"role": "系統", "content": f"{system_prompt}"},
-                {"role": "資訊摘要", "content": f"{rag_infomation}"},
-                {"role": f"{prompt_role}", "content": f"{prompt}"}
-            ]
-
-        result = self._infer_zh(llm_messages, generation_prompt_role)
-
-        if add_to_history:
-            self.conversation_history.append(f"{prompt_role}: {prompt}")
-            self.conversation_history.append(f"AI英文老師: {result}")
-
-            if len(self.conversation_history) > self.max_history_length:
-                self.conversation_history.pop(0)
-                self.conversation_history.pop(0)
-
-        self.clear_cache()
-
-        return result
-
-    # this function connect with db
     def infer_with_db(self, user_id: str, prompt: str, prompt_role: str = "student", generation_prompt_role: str = "AI English teacher",
                            add_to_history: str = True, system_prompt: str =
         """
@@ -740,14 +388,12 @@ class LLM:
             print("RelationalDB is None.")
             return ""
         
-        # tmp
         current_mode, english_level = self.db.get_data_by_primary_key('user_settings', user_id, 'current_mode, english_level')
         conversation_history = self.db.get_conversations_by_user(user_id=user_id, max_history_length=self.max_history_length)
-        # self.change_mode(user_id, current_mode, add_to_history=False, update_db=False)
-        # self.change_level(user_id, english_level, add_to_history=False, update_db=False)
         system_prompt = self.system_prompts[current_mode]
         level_desciption = self.level_descriptions[english_level]
-        # self.conversation_history = loads(conversation_history_from_db)
+
+        # conversation_summary = self.abstract(prompt)
 
         if rag_infomation is not None and rag_information_process:
             rag_infomation = self.infer(prompt=rag_infomation, prompt_role="retrieved information", generation_prompt_role="summarization assistant", add_to_history=False, system_prompt=
@@ -772,49 +418,28 @@ class LLM:
                     Retrieved Information to summarize:
                 """
             )
+   
+        llm_messages = [
+            {"role": "system", "content": f"{system_prompt}"},
+            {"role": "student's english level desciption", "content": f"{level_desciption}"},
+            # {"role": "conversation summary", "content": f"{conversation_summary}"}
+        ]
 
-        # 要如何設定權重?
-        # print(self.conversation_history)
-        if len(conversation_history) > 0:
-            # conversation_history = '\n'.join(self.conversation_history)
-            # conversation_summary = self.abstract(conversation_history)
+        # 單元學習
+        if current_mode == self.modes[2]:
+            llm_messages.append({"role":"instruction", "content":f"{self.clt_instruction}"})
         
-            llm_messages = [
-                {"role": "system", "content": f"{system_prompt}"},
-                {"role": "student's english level desciption", "content": f"{level_desciption}"},
-                # {"role": "conversation summary", "content": f"{conversation_summary}"}
-            ]
+        # 學習資源
+        if current_mode == self.modes[4] and rag_infomation is not None:
+            llm_messages.append({"role":"learning resource information", "content":f"{rag_infomation}"})
 
-            # 單元學習
-            if current_mode == self.modes[2]:
-                llm_messages.append({"role":"instruction", "content":f"{self.clt_instruction}"})
-            
-            # 學習資源
-            if current_mode == self.modes[4] and rag_infomation is not None:
-                llm_messages.append({"role":"learning resource information", "content":f"{rag_infomation}"})
+        for speaker, history in conversation_history:
+            llm_messages.append({"role": "conversation history", "content": f"{speaker}:{history}"})
 
-            for speaker, history in conversation_history:
-                llm_messages.append({"role": "conversation history", "content": f"{speaker}:{history}"})
-
-            llm_messages.append({"role": f"{prompt_role}", "content": f"{prompt}"})
-        else:
-            llm_messages = [
-                {"role": "system", "content": f"{system_prompt}"},
-                {"role": "student's english level desciption", "content": f"{level_desciption}"},
-            ]
-
-            # 單元學習
-            if current_mode == self.modes[2]:
-                llm_messages.append({"role":"instruction", "content":f"{self.clt_instruction}"})
-
-            # 學習資源
-            if current_mode == self.modes[4] and rag_infomation is not None:
-                llm_messages.append({"role":"learning resource information", "content":f"{rag_infomation}"})
-
-
-            llm_messages.append({"role": f"{prompt_role}", "content": f"{prompt}"})
+        llm_messages.append({"role": f"{prompt_role}", "content": f"{prompt}"})
 
         print(llm_messages)
+        
         result = self._infer(llm_messages, generation_prompt_role)
 
         if add_to_history:
@@ -859,9 +484,7 @@ class LLM:
                     """
         )
 
-        self.abstraction = conversation_summary
-
-        # information_extract = self.infer(prompt=prompt, prompt_role="conversation history", add_to_history=False, system_prompt=
+        # information_extract = self.infer(prompt=prompt, prompt_role="conversation history", system_prompt=
         #         """
         #             You are an information extraction assistant. Extract the key information from the following conversation, focusing on the main questions and responses. Provide a brief summary of the most important points. Keep the summary concise.
                     
@@ -885,7 +508,7 @@ class LLM:
         #             """
         # )
 
-        # topic_summary = self.infer(prompt=prompt, prompt_role="conversation history", add_to_history=False, system_prompt=
+        # topic_summary = self.infer(prompt=prompt, prompt_role="conversation history", system_prompt=
         #         """
         #             You are a topic summarization assistant. Identify and summarize the main topics discussed in the following conversation. Provide a brief summary that captures the essence of each topic. Keep it concise and focused.
                     
@@ -902,7 +525,7 @@ class LLM:
         #             """
         # )
 
-        # context_aware_summary = self.infer(prompt=prompt, prompt_role="conversation history", add_to_history=False, system_prompt=
+        # context_aware_summary = self.infer(prompt=prompt, prompt_role="conversation history", system_prompt=
         #         """
         #             You are a context-aware summarization assistant. Summarize the conversation, maintaining the context and flow. Ensure the summary captures the flow and connection between different parts of the conversation. Keep it concise.
                     
@@ -952,10 +575,7 @@ class LLM:
                     """
         )
 
-        self.abstraction = conversation_summary
-
-        # conversation_review = self.infer_zh(prompt=prompt, prompt_role="對話紀錄",
-        #                                       add_to_history=False, system_prompt=
+        # conversation_review = self.infer_zh(prompt=prompt, prompt_role="對話紀錄", system_prompt=
         #         """
         #             你是位統整專家。
         #             對話紀錄。
@@ -974,7 +594,7 @@ class LLM:
         #             """
         # )
 
-        # information_extract = self.infer(prompt=prompt, prompt_role="conversation history", add_to_history=False, system_prompt=
+        # information_extract = self.infer(prompt=prompt, prompt_role="conversation history", system_prompt=
         #         """
         #             You are an information extraction assistant. Extract the key information from the following conversation, focusing on the main questions and responses. Provide a brief summary of the most important points. Keep the summary concise.
                     
@@ -998,7 +618,7 @@ class LLM:
         #             """
         # )
 
-        # topic_summary = self.infer(prompt=prompt, prompt_role="conversation history", add_to_history=False, system_prompt=
+        # topic_summary = self.infer(prompt=prompt, prompt_role="conversation history", system_prompt=
         #         """
         #             You are a topic summarization assistant. Identify and summarize the main topics discussed in the following conversation. Provide a brief summary that captures the essence of each topic. Keep it concise and focused.
                     
@@ -1015,7 +635,7 @@ class LLM:
         #             """
         # )
 
-        # context_aware_summary = self.infer(prompt=prompt, prompt_role="conversation history", add_to_history=False, system_prompt=
+        # context_aware_summary = self.infer(prompt=prompt, prompt_role="conversation history", system_prompt=
         #         """
         #             You are a context-aware summarization assistant. Summarize the conversation, maintaining the context and flow. Ensure the summary captures the flow and connection between different parts of the conversation. Keep it concise.
                     
@@ -1044,9 +664,6 @@ class LLM:
         # return (conversation_summary, information_extract, topic_summary, context_aware_summary)
         return conversation_summary
     
-    def show_abstraction(self):
-        print(self.abstraction)
-
 if __name__ == "__main__":
     llm_id = "MaziyarPanahi/Llama-3-8B-Instruct-v0.8"
     cache_dir = "../llm/model"
