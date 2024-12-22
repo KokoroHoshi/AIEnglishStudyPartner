@@ -391,7 +391,7 @@ class LLM:
         current_mode, english_level = self.db.get_data_by_primary_key('user_settings', user_id, 'current_mode, english_level')
         conversation_history = self.db.get_conversations_by_user(user_id=user_id, max_history_length=self.max_history_length)
         system_prompt = self.system_prompts[current_mode]
-        level_desciption = self.level_descriptions[english_level]
+        level_description = self.level_descriptions[english_level]
 
         # conversation_summary = self.abstract(prompt)
 
@@ -421,7 +421,7 @@ class LLM:
    
         llm_messages = [
             {"role": "system", "content": f"{system_prompt}"},
-            {"role": "student's english level desciption", "content": f"{level_desciption}"},
+            {"role": "student's english level description", "content": f"{level_description}"},
             # {"role": "conversation summary", "content": f"{conversation_summary}"}
         ]
 
