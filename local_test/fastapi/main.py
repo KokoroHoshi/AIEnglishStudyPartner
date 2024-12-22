@@ -418,12 +418,13 @@ def handle_audio_message(event: MessageEvent):
         audio_bytes = get_message_content(event.message.id)
     
         # save to wav
-        output_file_path = f"./static/user_audio_{event.message.id}.wav"
+        user_audio_file_path = f"./static/user_audio_{event.message.id}.wav"
+        tts_audio_file_path = f"./static/tts_audio_{event.message.id}.wav"
         stt.load()
-        stt.save_m4a_bytes_to_wav(audio_bytes, output_file_path)
+        stt.save_m4a_bytes_to_wav(audio_bytes, user_audio_file_path)
         
         stt_result = {}
-        stt_result = stt.infer(output_file_path)
+        stt_result = stt.infer(user_audio_file_path)
         stt.unload()
         print(stt_result)
 
@@ -439,7 +440,7 @@ def handle_audio_message(event: MessageEvent):
                 reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
 
         tts.load()
-        tts.infer(reply_text, output_path=f"./static/tts_audio_{event.message.id}.wav")
+        tts.infer(reply_text, output_path=tts_audio_file_path)
         tts.unload()
 
         line_bot_api.reply_message_with_http_info(
@@ -447,15 +448,16 @@ def handle_audio_message(event: MessageEvent):
                 reply_token=event.reply_token,
                 messages=[TextMessage(text=reply_text), 
                           AudioMessage(original_content_url=f"{ngrok_url}/static/tts_audio_{event.message.id}.wav",
-                                        duration=get_audio_duration(output_file_path))
+                                        duration=get_audio_duration(user_audio_file_path))
                         ]
             )
         )
 
-        # but tts result does not delete yet
-        if os.path.exists(output_file_path):
-            os.remove(output_file_path)
-        # print("message sended")
+        # tts result does not delete yet
+        if os.path.exists(user_audio_file_path):
+            os.remove(user_audio_file_path)
+        # if os.path.exists(tts_audio_file_path):
+            # os.remove(tts_audio_file_path)
 
 if __name__ == "__main__":
     # testing
