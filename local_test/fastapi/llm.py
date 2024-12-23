@@ -397,29 +397,32 @@ class LLM:
         # conversation_summary = self.abstract(prompt)
 
         if rag_infomation is not None and rag_information_process:
-            rag_infomation = self.infer(prompt=rag_infomation, prompt_role="retrieved information", generation_prompt_role="summarization assistant", add_to_history=False, system_prompt=
-                """
-                    You are a summarization assistant.
-                    Summarize the key points of the retrieved information below.
-                    The information may be fragmented and may contain overlapping parts due to chunking.
-                    Keep it concise and to the point, removing any redundant or repeated information.
-                    Note! If there are hyperlinks in the information, try to retain them as complete as possible.
+            rag_infomation = self.infer(prompt=rag_infomation,
+                                        prompt_role="retrieved information",
+                                        generation_prompt_role="summarization assistant",
+                                        add_to_history=False,
+                                        system_prompt="""
+                                            You are a summarization assistant.
+                                            Summarize the key points of the retrieved information below.
+                                            The information may be fragmented and may contain overlapping parts due to chunking.
+                                            Keep it concise and to the point, removing any redundant or repeated information.
+                                            Note! If there are hyperlinks in the information, try to retain them as complete as possible.
+                                            
+                                            Example:
+                                            Retrieved Information:
+                                            1. AI teacher introduced themselves and asked for the user's name and English level. The user, John, mentioned their
+                                            2. John, mentioned their English level is B1. The AI teacher recommended John to watch English
+                                            3. recommended John to watch English pronunciation videos. 
+                                            
+                                            Summary:
+                                            * The AI teacher introduced themselves and asked for the user's name and English level.
+                                            * The user, John, mentioned their English level is B1.
+                                            * The AI teacher recommended John to watch English pronunciation videos.
+                                            
+                                            Retrieved Information to summarize:
+                                            """
+                                        )
                     
-                    Example:
-                    Retrieved Information:
-                    1. AI teacher introduced themselves and asked for the user's name and English level. The user, John, mentioned their
-                    2. John, mentioned their English level is B1. The AI teacher recommended John to watch English
-                    3. recommended John to watch English pronunciation videos. 
-                    
-                    Summary:
-                    * The AI teacher introduced themselves and asked for the user's name and English level.
-                    * The user, John, mentioned their English level is B1.
-                    * The AI teacher recommended John to watch English pronunciation videos.
-                    
-                    Retrieved Information to summarize:
-                """
-            )
-   
         llm_messages = [
             {"role": "system", "content": f"{system_prompt}"},
             {"role": "student's english level description", "content": f"{level_description}"},

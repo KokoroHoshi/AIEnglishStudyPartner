@@ -108,7 +108,7 @@ async def lifespan(app: FastAPI):
     # stt.load()
     # tts.load()
 
-    # embedding_model.load()
+    embedding_model.load()
     index_dir = './vector_db/indices'
     text_dir = './vector_db/texts'
     rag = RAG(embedding_model, index_dir, text_dir)
@@ -326,7 +326,7 @@ def handle_text_message(event: MessageEvent):
         else:
             rag_result = None
 
-            # 學習資源
+            # 資源推薦
             if user_mode == llm.modes[4]:
                 rag_result = rag.retrieve_by_id(id='learning_resource', query=user_msg)
                 # print(rag_result)
