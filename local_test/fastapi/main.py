@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 
 from linebot.v3 import (
-    WebhookHandler
+    WebhookParser
 )
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import (
@@ -19,8 +19,8 @@ from linebot.v3.webhooks import (
 )
 from linebot.v3.messaging import (
     Configuration,
-    ApiClient,
-    MessagingApi,
+    AsyncApiClient,
+    AsyncMessagingApi,
     ReplyMessageRequest,
     TextMessage,
     ButtonsTemplate,
@@ -55,7 +55,8 @@ HF_TOKEN = os.getenv('HF_TOKEN')
 
 ngrok_url = ""
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(LINE_CHANNEL_SECRET)
+# handler = WebhookHandler(LINE_CHANNEL_SECRET)
+parser = WebhookParser(LINE_CHANNEL_SECRET)
 
 # llm_id = "MaziyarPanahi/Llama-3-8B-Instruct-v0.8"
 # cache_dir = "../llm/model"
@@ -94,9 +95,8 @@ async def download_models():
     print("Model downloads completed!")
 
 async def send_text_message():
-    with ApiClient(configuration) as api_client:
-        # 使用新的 MessagingApi 類別
-        line_bot_api = MessagingApi(api_client)
+    async with AsyncApiClient(configuration) as api_client:
+        line_bot_api = AsyncMessagingApi(api_client)
 
         # 假設 db.get_all_users() 返回 [(user_id, user_name)]
         user_id, user_name = db.get_all_users()[0]
@@ -111,8 +111,7 @@ async def send_text_message():
         )
 
         try:
-            # 使用新的推送訊息方法
-            line_bot_api.push_message(push_message_request)
+            await line_bot_api.push_message(push_message_request)
         except Exception as e:
             print(f"Error: {e}")
 
@@ -131,9 +130,9 @@ async def lifespan(app: FastAPI):
     auto_update_webhook_url(8080)
 
     # asyncio.create_task(download_models())
-    push_message_task = asyncio.create_task(scheduled_task())
+    # push_message_task = asyncio.create_task(scheduled_task())
 
-    # llm.load()
+    llm.load()
     # vlm.load()
     # stt.load()
     # tts.load()
@@ -147,11 +146,11 @@ async def lifespan(app: FastAPI):
 
     # shutdown event
 
-    push_message_task.cancel()
-    try:
-        await push_message_task
-    except asyncio.CancelledError:
-        pass
+    # push_message_task.cancel()
+    # try:
+    #     await push_message_task
+    # except asyncio.CancelledError:
+    #     pass
     
     db.close()
 
@@ -227,14 +226,22 @@ async def callback(request: Request):
     # 獲取 X-Line-Signature 標頭
     signature = request.headers["X-Line-Signature"]
 
-    # 獲取請求內容
     body = await request.body()
+    body = body.decode('utf-8')
 
     try:
-        # 驗證簽名
-        handler.handle(body.decode('utf-8'), signature)
+        events = parser.parse(body, signature)
     except InvalidSignatureError:
         raise HTTPException(status_code=400, detail="Invalid signature")
+    
+    for event in events:
+        if isinstance(event, MessageEvent):
+            if isinstance(event.message, TextMessageContent):
+                await handle_text_message(event)
+            elif isinstance(event.message, ImageMessageContent):
+                await handle_image_message(event)
+            elif isinstance(event.message, AudioMessageContent):
+                await handle_audio_message(event)
 
     return JSONResponse(content={"status": "OK"})
 
@@ -314,16 +321,15 @@ async def user_settings(request: Request):
     }, headers=headers)
 
 
-@handler.add(MessageEvent, message=TextMessageContent)
-def handle_text_message(event: MessageEvent):
+async def handle_text_message(event: MessageEvent):
     global llm    
 
     # 使用 ApiClient 來發送回覆
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
+    async with AsyncApiClient(configuration) as api_client:
+        line_bot_api = AsyncMessagingApi(api_client)
 
         user_id = event.source.user_id
-        user_profile = line_bot_api.get_profile(user_id)
+        user_profile = await line_bot_api.get_profile(user_id)
         user_name = user_profile.display_name
         user_profile_photo = user_profile.picture_url
         # user_status_message = user_profile.status_message
@@ -377,7 +383,7 @@ def handle_text_message(event: MessageEvent):
         elif user_mode != llm.modes[5]:
             reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
 
-        line_bot_api.reply_message_with_http_info(
+        await line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
                 messages=reply_msgs
@@ -385,15 +391,14 @@ def handle_text_message(event: MessageEvent):
         )
         # print("message sended")
 
-@handler.add(MessageEvent, message=ImageMessageContent)
-def handle_image_message(event: MessageEvent):
+async def handle_image_message(event: MessageEvent):
     global llm, vlm
 
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
+    async with AsyncApiClient(configuration) as api_client:
+        line_bot_api = AsyncMessagingApi(api_client)
 
         user_id = event.source.user_id
-        user_profile = line_bot_api.get_profile(user_id)
+        user_profile = await line_bot_api.get_profile(user_id)
         user_name = user_profile.display_name
         user_profile_photo = user_profile.picture_url
         # user_status_message = user_profile.status_message
@@ -429,7 +434,7 @@ def handle_image_message(event: MessageEvent):
                 reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
 
 
-        line_bot_api.reply_message_with_http_info(
+        await line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
                 messages=[TextMessage(text=reply_text)]
@@ -437,16 +442,15 @@ def handle_image_message(event: MessageEvent):
         )
         # print("message sended")
 
-@handler.add(MessageEvent, message=AudioMessageContent)
-def handle_audio_message(event: MessageEvent):
+async def handle_audio_message(event: MessageEvent):
     global ngrok_url
     global llm, stt, tts
 
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
+    async with AsyncApiClient(configuration) as api_client:
+        line_bot_api = AsyncMessagingApi(api_client)
 
         user_id = event.source.user_id
-        user_profile = line_bot_api.get_profile(user_id)
+        user_profile = await line_bot_api.get_profile(user_id)
         user_name = user_profile.display_name
         user_profile_photo = user_profile.picture_url
         # user_status_message = user_profile.status_message
@@ -482,7 +486,7 @@ def handle_audio_message(event: MessageEvent):
         tts.infer(reply_text, output_path=tts_audio_file_path)
         tts.unload()
 
-        line_bot_api.reply_message_with_http_info(
+        await line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
                 messages=[TextMessage(text=reply_text), 
