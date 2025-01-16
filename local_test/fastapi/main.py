@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -27,7 +27,8 @@ from linebot.v3.messaging import (
     MessageAction,
     TemplateMessage,
     AudioMessage,
-    URIAction
+    URIAction,
+    PushMessageRequest
 )
 
 import time
@@ -92,6 +93,34 @@ async def download_models():
     await asyncio.to_thread(embedding_model.load)
     print("Model downloads completed!")
 
+async def send_text_message():
+    with ApiClient(configuration) as api_client:
+        # 使用新的 MessagingApi 類別
+        line_bot_api = MessagingApi(api_client)
+
+        # 假設 db.get_all_users() 返回 [(user_id, user_name)]
+        user_id, user_name = db.get_all_users()[0]
+        
+        # 創建 TextMessage 實例
+        push_message = TextMessage(text=f'{user_name}您好！今天準備好來學英文了嗎？')
+
+        # 創建 PushMessageRequest 實例
+        push_message_request = PushMessageRequest(
+            to=user_id,
+            messages=[push_message]
+        )
+
+        try:
+            # 使用新的推送訊息方法
+            line_bot_api.push_message(push_message_request)
+        except Exception as e:
+            print(f"Error: {e}")
+
+async def scheduled_task():
+    while True:
+        await send_text_message()
+        await asyncio.sleep(60)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup event
@@ -102,19 +131,28 @@ async def lifespan(app: FastAPI):
     auto_update_webhook_url(8080)
 
     # asyncio.create_task(download_models())
+    push_message_task = asyncio.create_task(scheduled_task())
 
-    llm.load()
+    # llm.load()
     # vlm.load()
     # stt.load()
     # tts.load()
 
-    embedding_model.load()
-    index_dir = './vector_db/indices'
-    text_dir = './vector_db/texts'
-    rag = RAG(embedding_model, index_dir, text_dir)
+    # embedding_model.load()
+    # index_dir = './vector_db/indices'
+    # text_dir = './vector_db/texts'
+    # rag = RAG(embedding_model, index_dir, text_dir)
+
     yield
-    
+
     # shutdown event
+
+    push_message_task.cancel()
+    try:
+        await push_message_task
+    except asyncio.CancelledError:
+        pass
+    
     db.close()
 
 app = FastAPI(lifespan=lifespan)
@@ -182,6 +220,7 @@ def auto_update_webhook_url(port: int):
             break
         else:
             print(f"Error. Status code: {res.status_code}")
+
 
 @app.post("/callback")
 async def callback(request: Request):
@@ -458,6 +497,7 @@ def handle_audio_message(event: MessageEvent):
             os.remove(user_audio_file_path)
         # if os.path.exists(tts_audio_file_path):
             # os.remove(tts_audio_file_path)
+
 
 if __name__ == "__main__":
     # testing

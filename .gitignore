@@ -8,7 +8,6 @@ local_test/fastapi/vector_db/texts/*
 local_test/fastapi/tmp/*
 local_test/fastapi/static/*.wav
 local_test/fastapi/__pycache__/*
-local_test/fastapi/*.pyc
 local_test/fastapi/relational_db
 venv
 

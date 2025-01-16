@@ -169,6 +169,16 @@ class RelationalDB:
         """Close the database connection."""
         self.connection.close()
 
+    def get_all_users(self) -> list:
+        """
+        Get a list of all user_id and user_name from the 'user' table.
+        """
+        query = """
+            SELECT user_id, user_name
+            FROM user;
+        """
+        self.cursor.execute(query)
+        return self.cursor.fetchall()
 
     def get_conversations_by_user(self, user_id: str, max_history_length: int) -> list:
         """
