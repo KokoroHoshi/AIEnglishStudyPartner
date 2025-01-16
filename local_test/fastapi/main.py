@@ -118,7 +118,7 @@ async def send_text_message():
 async def scheduled_task():
     while True:
         await send_text_message()
-        await asyncio.sleep(60)
+        await asyncio.sleep(5)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -130,7 +130,7 @@ async def lifespan(app: FastAPI):
     auto_update_webhook_url(8080)
 
     # asyncio.create_task(download_models())
-    # push_message_task = asyncio.create_task(scheduled_task())
+    push_message_task = asyncio.create_task(scheduled_task())
 
     llm.load()
     # vlm.load()
@@ -146,11 +146,11 @@ async def lifespan(app: FastAPI):
 
     # shutdown event
 
-    # push_message_task.cancel()
-    # try:
-    #     await push_message_task
-    # except asyncio.CancelledError:
-    #     pass
+    push_message_task.cancel()
+    try:
+        await push_message_task
+    except asyncio.CancelledError:
+        pass
     
     db.close()
 
@@ -320,7 +320,7 @@ async def user_settings(request: Request):
         "settings": user_settings
     }, headers=headers)
 
-
+# need to use reply_text = await asyncio.to_thread(llm.infer, event.message.text)
 async def handle_text_message(event: MessageEvent):
     global llm    
 
