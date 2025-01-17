@@ -36,6 +36,7 @@ import requests
 
 import os
 from dotenv import load_dotenv
+from datetime import datetime
 
 from llm import LLM
 from vlm import VLM
@@ -95,30 +96,38 @@ async def download_models():
     print("Model downloads completed!")
 
 async def send_text_message():
+    now = datetime.now()
+    # weekday() returns 0 for Monday, 6 for Sunday, so we adjust for Sunday being the first day
+    current_weekday = (now.weekday() + 1) % 7  # Adjust for Sunday = 0 in this case
+    current_hour = now.hour
+    current_minute = now.minute
+
+    # 查詢需要通知的用戶
+    users_to_notify = db.get_users_for_notification(current_weekday, current_hour, current_minute)
+
     async with AsyncApiClient(configuration) as api_client:
         line_bot_api = AsyncMessagingApi(api_client)
 
-        # 假設 db.get_all_users() 返回 [(user_id, user_name)]
-        user_id, user_name = db.get_all_users()[0]
+        for user_id in users_to_notify:
         
-        # 創建 TextMessage 實例
-        push_message = TextMessage(text=f'{user_name}您好！今天準備好來學英文了嗎？')
+            # 創建 TextMessage 實例
+            push_message = TextMessage(text='Hello！今天準備好來學英文了嗎？')
 
-        # 創建 PushMessageRequest 實例
-        push_message_request = PushMessageRequest(
-            to=user_id,
-            messages=[push_message]
-        )
+            # 創建 PushMessageRequest 實例
+            push_message_request = PushMessageRequest(
+                to=user_id,
+                messages=[push_message]
+            )
 
-        try:
-            await line_bot_api.push_message(push_message_request)
-        except Exception as e:
-            print(f"Error: {e}")
+            try:
+                await line_bot_api.push_message(push_message_request)
+            except Exception as e:
+                print(f"Error: {e}")
 
 async def scheduled_task():
     while True:
         await send_text_message()
-        await asyncio.sleep(5)
+        await asyncio.sleep(60)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -132,7 +141,7 @@ async def lifespan(app: FastAPI):
     # asyncio.create_task(download_models())
     push_message_task = asyncio.create_task(scheduled_task())
 
-    llm.load()
+    # llm.load()
     # vlm.load()
     # stt.load()
     # tts.load()
@@ -320,7 +329,7 @@ async def user_settings(request: Request):
         "settings": user_settings
     }, headers=headers)
 
-# need to use reply_text = await asyncio.to_thread(llm.infer, event.message.text)
+# need to use multiprocessing
 async def handle_text_message(event: MessageEvent):
     global llm    
 

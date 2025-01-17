@@ -179,26 +179,51 @@ class RelationalDB:
         """
         self.cursor.execute(query)
         return self.cursor.fetchall()
+    
+    def get_users_for_notification(self, current_weekday: int) -> list:
+        """
+        Retrieve user_ids from the 'user_notification' table where notifications are enabled
+        for the given weekday.
 
-    def get_conversations_by_user(self, user_id: str, max_history_length: int) -> list:
+        :param current_weekday: Current day of the week (0 = Sunday, 6 = Saturday)
+        :return: List of user_ids that should be notified
         """
-        Get the latest 'max_history_length' conversations related to a specific user, ordered from old to new.
-        Return (speaker, conversation_data)
-        """
+        # Convert current_weekday to index for the day string, add 1 because SQL uses 1-based indexing
+        day_index = current_weekday + 1
+        
         query = """
-            SELECT speaker, conversation_data
-            FROM (
-                SELECT c.speaker, c.conversation_data, c.timestamp
-                FROM conversation_history c
-                JOIN user_conversation_relation ucr ON c.conversation_id = ucr.conversation_id
-                WHERE ucr.user_id = ?
-                ORDER BY c.timestamp DESC
-                LIMIT ?
-            ) AS subquery
-            ORDER BY subquery.timestamp ASC;
+            SELECT user_id
+            FROM user_notification
+            WHERE notification_enabled = 'true'
+              AND SUBSTR(notification_days, ?, 1) = '1';
         """
-        self.cursor.execute(query, (user_id, max_history_length))
-        return self.cursor.fetchall()
+        self.cursor.execute(query, (str(day_index),))
+        return [row[0] for row in self.cursor.fetchall()]
+
+    def get_users_for_notification(self, current_weekday: int, current_hour: int, current_minute: int) -> list:
+        """
+        Retrieve user_ids from the 'user_notification' table where notifications are enabled
+        for the given weekday, hour, and minute.
+
+        :param current_weekday: Current day of the week (0 = Sunday, 6 = Saturday)
+        :param current_hour: Current hour in 24-hour format
+        :param current_minute: Current minute
+        :return: List of user_ids that should be notified
+        """
+        # Convert current_weekday to index for the day string
+        day_index = current_weekday + 1  # Add 1 because SQL uses 1-based indexing
+        # Format time string for matching in the database
+        time_str = f"{current_hour:02d}:{current_minute:02d}"
+
+        query = """
+            SELECT user_id
+            FROM user_notification
+            WHERE notification_enabled = 'true'
+              AND SUBSTR(notification_days, ?, 1) = '1'
+              AND notification_time = ?;
+        """
+        self.cursor.execute(query, (str(day_index), time_str))
+        return [row[0] for row in self.cursor.fetchall()]
 
 
 
