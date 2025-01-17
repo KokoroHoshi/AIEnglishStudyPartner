@@ -123,10 +123,14 @@ async def send_text_message():
                 await line_bot_api.push_message(push_message_request)
             except Exception as e:
                 print(f"Error: {e}")
+    print(now)
+    print(users_to_notify)
 
-async def scheduled_task():
+async def push_message():
     while True:
         await send_text_message()
+        
+        # need to use AsyncIOScheduler
         await asyncio.sleep(60)
 
 @asynccontextmanager
@@ -139,9 +143,9 @@ async def lifespan(app: FastAPI):
     auto_update_webhook_url(8080)
 
     # asyncio.create_task(download_models())
-    push_message_task = asyncio.create_task(scheduled_task())
+    push_message_task = asyncio.create_task(push_message())
 
-    # llm.load()
+    llm.load()
     # vlm.load()
     # stt.load()
     # tts.load()
@@ -329,7 +333,7 @@ async def user_settings(request: Request):
         "settings": user_settings
     }, headers=headers)
 
-# need to use multiprocessing
+# need to use multiprocessing or docker-compose
 async def handle_text_message(event: MessageEvent):
     global llm    
 

@@ -218,7 +218,7 @@ class RelationalDB:
         query = """
             SELECT user_id
             FROM user_notification
-            WHERE notification_enabled = 'true'
+            WHERE notification_enabled = 'True'
               AND SUBSTR(notification_days, ?, 1) = '1'
               AND notification_time = ?;
         """
