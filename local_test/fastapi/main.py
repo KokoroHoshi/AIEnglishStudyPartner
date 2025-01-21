@@ -130,7 +130,7 @@ async def push_message():
     while True:
         await send_text_message()
         
-        # need to use AsyncIOScheduler
+        # need to use AsyncIOScheduler and sync_with_external_clock is better
         await asyncio.sleep(60)
 
 @asynccontextmanager
