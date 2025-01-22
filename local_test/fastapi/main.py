@@ -150,10 +150,10 @@ async def lifespan(app: FastAPI):
     # stt.load()
     # tts.load()
 
-    # embedding_model.load()
-    # index_dir = './vector_db/indices'
-    # text_dir = './vector_db/texts'
-    # rag = RAG(embedding_model, index_dir, text_dir)
+    embedding_model.load()
+    index_dir = './vector_db/indices'
+    text_dir = './vector_db/texts'
+    rag = RAG(embedding_model, index_dir, text_dir)
 
     yield
 

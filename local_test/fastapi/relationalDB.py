@@ -225,6 +225,25 @@ class RelationalDB:
         self.cursor.execute(query, (str(day_index), time_str))
         return [row[0] for row in self.cursor.fetchall()]
 
+    def get_conversations_by_user(self, user_id: str, max_history_length: int) -> list:
+            """
+            Get the latest 'max_history_length' conversations related to a specific user, ordered from old to new.
+            Return (speaker, conversation_data)
+            """
+            query = """
+                SELECT speaker, conversation_data
+                FROM (
+                    SELECT c.speaker, c.conversation_data, c.timestamp
+                    FROM conversation_history c
+                    JOIN user_conversation_relation ucr ON c.conversation_id = ucr.conversation_id
+                    WHERE ucr.user_id = ?
+                    ORDER BY c.timestamp DESC
+                    LIMIT ?
+                ) AS subquery
+                ORDER BY subquery.timestamp ASC;
+            """
+            self.cursor.execute(query, (user_id, max_history_length))
+            return self.cursor.fetchall()
 
 
 if __name__ == "__main__":
