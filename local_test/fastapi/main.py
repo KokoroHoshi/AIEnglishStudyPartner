@@ -482,7 +482,7 @@ async def handle_audio_message(event: MessageEvent):
             reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
         else:
             rag_result = None
-            reply_text = llm.infer_with_db(user_id, f"以下是學生的語音訊息{stt_result['text']}", rag_infomation=rag_result)
+            reply_text = llm.infer_with_db(user_id, f"以下是學生的語音訊息{stt_result}", rag_infomation=rag_result)
 
             if not reply_text:
                 reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."

@@ -66,7 +66,7 @@ class STT:
 
     def infer(self, file_path: str) -> str:
         result = self.pipeline(file_path)
-        return result
+        return result["text"]
     
     async def infer_with_db(self, user_id: str, audio_bytes: bytes, add_to_history: bool = True) -> str:
         if add_to_history:
