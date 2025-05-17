@@ -3,16 +3,22 @@ from pathlib import Path
 from io import BytesIO
 from pydub import AudioSegment
 
-
+import uuid
 import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
+from relationalDB import RelationalDB
+from datetime import datetime, timezone
+
+from os import remove
+
 class STT:
-    def __init__(self, model_id: str, cache_dir: str, hf_token: Optional[str] = None):
+    def __init__(self, model_id: str, cache_dir: str, hf_token: Optional[str] = None, db_instance: RelationalDB = None):
         self.id = model_id
         self.cache_dir = Path(cache_dir)
         self.hf_token = hf_token
         self.pipeline = None
+        self.db = db_instance
 
     def load(self):
         stt = AutoModelForSpeechSeq2Seq.from_pretrained(
@@ -53,7 +59,7 @@ class STT:
         print(f"{id(self)} STT has been unloaded successfully.")
     
     # need to install ffmpeg first
-    def save_m4a_bytes_to_wav(self, audio_bytes: BytesIO, output_file_path: str = "./tmp/user_audio.wav"):
+    def save_m4a_bytes_to_temp_wav(self, audio_bytes: bytes, output_file_path: str = "./tmp/user_audio.wav"):
         audio_io = BytesIO(audio_bytes)
         audio_segment = AudioSegment.from_file(audio_io, format="m4a")
         audio_segment.export(output_file_path, format="wav")
@@ -61,6 +67,33 @@ class STT:
     def infer(self, file_path: str) -> str:
         result = self.pipeline(file_path)
         return result
+    
+    async def infer_with_db(self, user_id: str, audio_bytes: bytes, add_to_history: bool = True) -> str:
+        if add_to_history:
+            cache_id = str(uuid.uuid4())
+            cache_type = 'audio'
+            timestamp = datetime.now(timezone.utc).isoformat()
+
+            self.db.insert_data(
+                'user_cache',
+                'cache_id, cache_type, cache_data, timestamp',
+                (cache_id, cache_type, audio_bytes, timestamp)
+            )
+
+            self.db.insert_data(
+                table_name='user_cache_relation',
+                columns='user_id, cache_id',
+                values=(user_id, cache_id)
+            )
+
+        temp_path = f"./tmp/temp_user_audio_{uuid.uuid4().hex}.wav"
+        self.save_m4a_bytes_to_temp_wav(audio_bytes, temp_path)
+
+        result_text = self.infer(temp_path)
+
+        # remove(temp_path)
+
+        return result_text
 
 if __name__ == "__main__":
     model_id = "openai/whisper-large-v3"

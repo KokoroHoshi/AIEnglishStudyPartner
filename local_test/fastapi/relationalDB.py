@@ -259,7 +259,7 @@ if __name__ == "__main__":
     db.create_table('user_conversation_relation', 'user_id TEXT, conversation_id TEXT, '
                                                   'FOREIGN KEY(user_id) REFERENCES user(user_id), '
                                                   'FOREIGN KEY(conversation_id) REFERENCES conversation_history(conversation_id)')
-    db.create_table('user_cache', 'cache_id TEXT PRIMARY KEY, cache_type TEXT, cache_data TEXT, timestamp TEXT')
+    db.create_table('user_cache', 'cache_id TEXT PRIMARY KEY, cache_type TEXT, cache_data BLOB, timestamp TEXT')
     db.create_table('user_cache_relation', 'user_id TEXT, cache_id TEXT, '
                                            'FOREIGN KEY(user_id) REFERENCES user(user_id), '
                                            'FOREIGN KEY(cache_id) REFERENCES user_cache(cache_id)')
@@ -283,7 +283,8 @@ if __name__ == "__main__":
     db.insert_data('user_conversation_relation', 'user_id, conversation_id', ('u2', 'c3'))
     db.insert_data('conversation_history', 'conversation_id, speaker, conversation_data, timestamp', ('c4', 'Alice', 'I\'m happy because we have a conversation now.', '2024-12-20 06:16:00'))
     db.insert_data('user_conversation_relation', 'user_id, conversation_id', ('u1', 'c4'))
-    db.insert_data('user_cache', 'cache_id, cache_type, cache_data, timestamp', ('cache1', 'TypeA', 'Cache data here', '2024-12-20 10:07:00'))
+    # change cache_data TEXT to BLOB so cannot use this example
+    # db.insert_data('user_cache', 'cache_id, cache_type, cache_data, timestamp', ('cache1', 'TypeA', 'Cache data here', '2024-12-20 10:07:00'))
     db.insert_data('user_cache_relation', 'user_id, cache_id', ('u1', 'cache1'))
 
     # Select test

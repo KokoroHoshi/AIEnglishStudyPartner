@@ -68,7 +68,7 @@ vlm_id = "google/paligemma-3b-mix-224"
 stt_id = "openai/whisper-large-v3"
 embedding_id = 'intfloat/multilingual-e5-large-instruct'
 
-db = RelationalDB("relational_db")
+db = RelationalDB("relational_db.db")
 db.create_table('user', 'user_id TEXT PRIMARY KEY, user_name TEXT, profile_photo TEXT')
 db.create_table('user_settings', 'user_id TEXT PRIMARY KEY, current_mode TEXT, english_level TEXT, '
                                 'FOREIGN KEY(user_id) REFERENCES user(user_id)')
@@ -84,7 +84,7 @@ db.create_table('user_cache_relation', 'user_id TEXT, cache_id TEXT, '
                                         'FOREIGN KEY(cache_id) REFERENCES user_cache(cache_id)')
 llm = LLM(llm_id=llm_id, cache_dir=cache_dir, hf_token=HF_TOKEN, db_instance=db)
 vlm = VLM(model_id=vlm_id, cache_dir=cache_dir, hf_token=HF_TOKEN)
-stt = STT(model_id=stt_id, cache_dir=cache_dir, hf_token=HF_TOKEN)
+stt = STT(model_id=stt_id, cache_dir=cache_dir, hf_token=HF_TOKEN, db_instance=db)
 tts = TTS()
 embedding_model = TextEmbeddingModel(embedding_id, cache_dir)
 rag = None
@@ -472,23 +472,15 @@ async def handle_audio_message(event: MessageEvent):
             add_new_user(user_id, user_name, user_profile_photo)
         
         audio_bytes = get_message_content(event.message.id)
-    
-        # save to wav
-        user_audio_file_path = f"./static/user_audio_{event.message.id}.wav"
-        tts_audio_file_path = f"./static/tts_audio_{event.message.id}.wav"
-        stt.load()
-        stt.save_m4a_bytes_to_wav(audio_bytes, user_audio_file_path)
         
-        stt_result = {}
-        stt_result = stt.infer(user_audio_file_path)
+        stt.load()
+        stt_result = await stt.infer_with_db(user_id, audio_bytes)
         stt.unload()
-        print(stt_result)
 
         reply_text = ""
         if not stt_result:
             reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
         else:
-            # reply_text = llm.infer_with_memory(user_id, f"以下是學生的語音訊息{stt_result['text']}", prompt_role="學生音檔")
             rag_result = None
             reply_text = llm.infer_with_db(user_id, f"以下是學生的語音訊息{stt_result['text']}", rag_infomation=rag_result)
 
@@ -496,6 +488,7 @@ async def handle_audio_message(event: MessageEvent):
                 reply_text = "抱歉目前這個LINE機器人有點問題。 Sorry, there are some problems with this line bot."
 
         tts.load()
+        tts_audio_file_path = f"./static/tts_audio_{event.message.id}.wav"
         tts.infer(reply_text, output_path=tts_audio_file_path)
         tts.unload()
 
@@ -504,14 +497,12 @@ async def handle_audio_message(event: MessageEvent):
                 reply_token=event.reply_token,
                 messages=[TextMessage(text=reply_text), 
                           AudioMessage(original_content_url=f"{ngrok_url}/static/tts_audio_{event.message.id}.wav",
-                                        duration=get_audio_duration(user_audio_file_path))
+                                        duration=get_audio_duration(tts_audio_file_path))
                         ]
             )
         )
 
-        # tts result does not delete yet
-        if os.path.exists(user_audio_file_path):
-            os.remove(user_audio_file_path)
+        # tts result can not delete yet (it can be delete after user GET the file)
         # if os.path.exists(tts_audio_file_path):
             # os.remove(tts_audio_file_path)
 
