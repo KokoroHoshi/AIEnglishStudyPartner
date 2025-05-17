@@ -68,6 +68,7 @@ vlm_id = "google/paligemma-3b-mix-224"
 stt_id = "openai/whisper-large-v3"
 embedding_id = 'intfloat/multilingual-e5-large-instruct'
 
+# can make a init_db_and_models function
 db = RelationalDB("relational_db.db")
 db.create_table('user', 'user_id TEXT PRIMARY KEY, user_name TEXT, profile_photo TEXT')
 db.create_table('user_settings', 'user_id TEXT PRIMARY KEY, current_mode TEXT, english_level TEXT, '
@@ -83,7 +84,7 @@ db.create_table('user_cache_relation', 'user_id TEXT, cache_id TEXT, '
                                         'FOREIGN KEY(user_id) REFERENCES user(user_id), '
                                         'FOREIGN KEY(cache_id) REFERENCES user_cache(cache_id)')
 llm = LLM(llm_id=llm_id, cache_dir=cache_dir, hf_token=HF_TOKEN, db_instance=db)
-vlm = VLM(model_id=vlm_id, cache_dir=cache_dir, hf_token=HF_TOKEN)
+vlm = VLM(model_id=vlm_id, cache_dir=cache_dir, hf_token=HF_TOKEN, db_instance=db)
 stt = STT(model_id=stt_id, cache_dir=cache_dir, hf_token=HF_TOKEN, db_instance=db)
 tts = TTS()
 embedding_model = TextEmbeddingModel(embedding_id, cache_dir)
@@ -420,20 +421,12 @@ async def handle_image_message(event: MessageEvent):
             add_new_user(user_id, user_name, user_profile_photo)
         
         image_bytes = get_message_content(event.message.id)
-
-        # save image
-        # jpg_file = f"./tmp/user_image.jpg"
-        # with open(jpg_file, 'wb') as fd:
-        #     fd.write(image_content)
-        # print(f"save image to {jpg_file}")
         
         llm.unload()
 
-        image_description = ""
         vlm.load()
-        image_description = vlm.infer(image_bytes=image_bytes, prompt="What is shown in this image?")
+        image_description = vlm.infer_with_db(user_id, image_bytes)
         vlm.unload()
-        print(image_description)
 
         llm.load()
 
@@ -453,7 +446,6 @@ async def handle_image_message(event: MessageEvent):
                 messages=[TextMessage(text=reply_text)]
             )
         )
-        # print("message sended")
 
 async def handle_audio_message(event: MessageEvent):
     global ngrok_url
@@ -474,6 +466,7 @@ async def handle_audio_message(event: MessageEvent):
         audio_bytes = get_message_content(event.message.id)
         
         stt.load()
+        # may all use async infer on multi-gpu
         stt_result = await stt.infer_with_db(user_id, audio_bytes)
         stt.unload()
 
