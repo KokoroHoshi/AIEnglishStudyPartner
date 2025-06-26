@@ -39,14 +39,13 @@ import sys
 from dotenv import load_dotenv
 from datetime import datetime
 
-from llm import LLM
-from vlm import VLM
-from stt import STT
-from tts import TTS
-from rag import TextEmbeddingModel, RAG
-from relationalDB import RelationalDB
-
-from schemas import SettingsUpdate
+from models.llm import LLM
+from models.vlm import VLM
+from models.stt import STT
+from models.tts import TTS
+from models.rag import TextEmbeddingModel, RAG
+from models.relationalDB import RelationalDB
+from models.schemas import SettingsUpdate
 
 load_dotenv()
 
@@ -91,7 +90,7 @@ stt_id = "openai/whisper-large-v3"
 embedding_id = 'intfloat/multilingual-e5-large-instruct'
 
 # can make a init_db_and_models function
-db = RelationalDB("relational_db.db")
+db = RelationalDB("db/relational_db.db")
 db.create_table('user', 'user_id TEXT PRIMARY KEY, user_name TEXT, profile_photo TEXT')
 db.create_table('user_settings', 'user_id TEXT PRIMARY KEY, current_mode TEXT, english_level TEXT, '
                                 'FOREIGN KEY(user_id) REFERENCES user(user_id)')
@@ -174,8 +173,8 @@ async def lifespan(app: FastAPI):
     # tts.load()
 
     embedding_model.load()
-    index_dir = './vector_db/indices'
-    text_dir = './vector_db/texts'
+    index_dir = 'db/vector_db/indices'
+    text_dir = 'db/vector_db/texts'
     rag = RAG(embedding_model, index_dir, text_dir)
 
     yield

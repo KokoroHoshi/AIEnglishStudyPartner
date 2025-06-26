@@ -7,7 +7,7 @@ import uuid
 import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
-from relationalDB import RelationalDB
+from models.relationalDB import RelationalDB
 from datetime import datetime, timezone
 
 from os import remove

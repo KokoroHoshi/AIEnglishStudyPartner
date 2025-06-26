@@ -7,7 +7,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers import pipeline, BitsAndBytesConfig
 
-from relationalDB import RelationalDB
+from models.relationalDB import RelationalDB
 
 import uuid
 from datetime import datetime, timezone

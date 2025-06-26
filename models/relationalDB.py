@@ -1,9 +1,10 @@
 import sqlite3
+from pathlib import Path
 from typing import Tuple, Any
 
 class RelationalDB:
     def __init__(self, db_name: str):
-        self.connection = sqlite3.connect(db_name)
+        self.connection = sqlite3.connect(Path(db_name))
         self.cursor = self.connection.cursor()
 
     def _get_primary_key_name(self, table_name: str) -> str:

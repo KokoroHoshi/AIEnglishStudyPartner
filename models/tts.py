@@ -1,4 +1,3 @@
-# pip install git+https://github.com/myshell-ai/MeloTTS.git --no-deps
 from melo.api import TTS as MTTS
 
 class TTS:
