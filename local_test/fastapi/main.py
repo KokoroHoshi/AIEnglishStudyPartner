@@ -35,6 +35,7 @@ import time
 import requests
 
 import os
+import sys
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -49,6 +50,28 @@ from schemas import SettingsUpdate
 
 load_dotenv()
 
+# List of required environment variables
+REQUIRED_ENV_VARS = [
+    "NGROK_TOKEN",
+    "LINE_CHANNEL_ACCESS_TOKEN",
+    "LINE_CHANNEL_SECRET",
+    "HF_TOKEN"
+]
+
+missing_vars = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+
+if missing_vars:
+    print("\n Missing required environment variables:")
+    for var in missing_vars:
+        print(f"   - {var}")
+    print("\n Please create or edit your `.env` file and add the missing keys.")
+    print("   Example:\n")
+    print("   NGROK_TOKEN=your_ngrok_token")
+    print("   LINE_CHANNEL_ACCESS_TOKEN=your_line_token")
+    print("   LINE_CHANNEL_SECRET=your_line_secret")
+    print("   HF_TOKEN=your_huggingface_token\n")
+    sys.exit(1)
+
 NGROK_TOKEN = os.getenv('NGROK_TOKEN')
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET')
@@ -56,13 +79,12 @@ HF_TOKEN = os.getenv('HF_TOKEN')
 
 ngrok_url = ""
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
-# handler = WebhookHandler(LINE_CHANNEL_SECRET)
 parser = WebhookParser(LINE_CHANNEL_SECRET)
 
-# llm_id = "MaziyarPanahi/Llama-3-8B-Instruct-v0.8"
-# cache_dir = "../llm/model"
+# You can customize the cache directory path below
+cache_dir = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub")
 
-cache_dir = "./models"
+# Model IDs below can be replaced with any other models you want to use
 llm_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 vlm_id = "google/paligemma-3b-mix-224"
 stt_id = "openai/whisper-large-v3"
