@@ -22,9 +22,6 @@ A multimodal AI-powered English learning chatbot built on the LINE platform, des
 - 💬 **LINE Bot Interface**: No need to download apps—just chat on LINE.
 - ⚙️ **One-click Environment Setup**: Run `install.py` to install all required dependencies.
 
-# How To Use
-[(Back to top)](#table-of-contents)
-
 # How To Use  
 [(Back to top)](#table-of-contents)
 
