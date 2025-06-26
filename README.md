@@ -110,5 +110,6 @@ AIEnglishStudyPartner/
 
 # License
 [(Back to top)](#table-of-contents)
-MIT
+
+Apache-2.0 license
 
