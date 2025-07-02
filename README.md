@@ -1,5 +1,12 @@
-# AIEnglishStudyPartner
-A multimodal AI-powered English learning chatbot built on the LINE platform, designed to help users engage in contextual English conversation with seamless interaction via text, speech, and image.  
+<div align="center">
+
+  # AI English Study Partner
+  
+  [**English**](./README.md) | [**繁體中文**](./README.zh-TW.md)
+  
+  A multimodal AI-powered English learning chatbot built on the LINE platform, designed to help users engage in contextual English conversation with seamless interaction via text, speech, and image.  
+
+</div>
 
 # Table of contents
 - [Key Features](#key-features)
@@ -9,8 +16,6 @@ A multimodal AI-powered English learning chatbot built on the LINE platform, des
 - [License](#license)
 
 # Key Features
-[(Back to top)](#table-of-contents)
-
 - ✅ **Multimodal Chatbot**: Combines text, voice, and image input/output to create immersive learning scenarios.
 - 🧠 **Integrated Deep Learning Models**:
   - **LLM (Large Language Model)**: Handles conversation generation.
@@ -23,8 +28,6 @@ A multimodal AI-powered English learning chatbot built on the LINE platform, des
 - ⚙️ **One-click Environment Setup**: Run `install.py` to install all required dependencies.
 
 # How To Use  
-[(Back to top)](#table-of-contents)
-
 ### 🌐 1. Set up ngrok (Expose your local server to the internet)  
 LINE Bot webhook requires a public HTTPS URL. Ngrok helps you create a secure tunnel from your local machine:
 
@@ -85,7 +88,6 @@ Make sure the following variables are set correctly in .env:
 - HF_TOKEN
   
 # Project Structure
-[(Back to top)](#table-of-contents)
 ```
 AIEnglishStudyPartner/
 ├── install.py               # One-click install script
