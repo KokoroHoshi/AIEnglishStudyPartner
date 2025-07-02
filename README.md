@@ -1,5 +1,6 @@
 <div align="center">
-
+<img alt="COVER" src="./cover.png" width="300" height="300" />
+  
   # AI English Study Partner
   
   [**English**](./README.md) | [**繁體中文**](./README.zh-TW.md)
