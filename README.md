@@ -112,7 +112,6 @@ AIEnglishStudyPartner/
 ```
 
 # License
-[(Back to top)](#table-of-contents)
-
 Apache-2.0 license
 
+[(Back to top)](#table-of-contents)
