@@ -15,10 +15,10 @@
 
 # 目錄
 
-  - [主要功能](https://www.google.com/search?q=%23%E4%B8%BB%E8%A6%81%E5%8A%9F%E8%83%BD)
-  - [如何使用](https://www.google.com/search?q=%23%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8)
-  - [專案結構](https://www.google.com/search?q=%23%E5%B0%88%E6%A1%88%E7%B5%90%E6%A7%8B)
-  - [版權宣告](https://www.google.com/search?q=%23%E7%89%88%E6%AC%8A%E5%AE%A3%E5%91%8A)
+  - [主要功能](#主要功能)
+  - [如何使用](#如何使用)
+  - [專案結構](#專案結構)
+  - [版權宣告](#版權宣告)
 
 -----
 
@@ -138,4 +138,4 @@ AIEnglishStudyPartner/
 
 Apache-2.0 授權
 
-[(返回頂部)](https://www.google.com/search?q=%23%E7%9B%AE%E9%8C%84)
+[(返回頂部)](#目錄)
